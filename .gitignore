@@ -23,10 +23,11 @@ profile.cov
 # Go workspace file
 go.work
 go.work.sum
+bin/
 
 # env file
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
