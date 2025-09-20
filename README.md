@@ -1,5 +1,10 @@
 # gHTTP
-A simple http server written in Go with TLS support
+gHTTP is a minimal Go file server that mirrors the `python -m http.server` CLI, adds structured request logging for every transfer, supports optional TLS termination, and shuts down gracefully when it receives system termination signals.
+
+### Key capabilities
+* Choose between HTTP/1.0 and HTTP/1.1 with `--protocol`/`-p`, allowing the server to tune connection headers and keep-alive behavior automatically.
+* Enable or disable TLS by supplying matching `--tls-cert` and `--tls-key` flags, making it easy to toggle encrypted serving without changing other options.
+* Suppress automatic directory listings by exporting `GHTTPD_DISABLE_DIR_INDEX=1`, ensuring the file server denies directory browsing when required.
 
 ## File Serving Behavior
 The server delegates file handling to the Go standard library's `http.FileServer`,
