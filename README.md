@@ -10,6 +10,17 @@ go install github.com/temirov/ghttp@latest
 
 Go 1.24.6 or newer is required, matching the minimum version declared in `go.mod`.
 
+After installation the `ghttp` binary is placed in `$GOBIN` (or `$GOPATH/bin`), and it accepts an optional positional `PORT` argument that mirrors `python -m http.server`.
+
+### Usage examples
+
+| Scenario | Example command | Notes |
+| --- | --- | --- |
+| Serve the current working directory on the default port 8000 | `ghttp` | Equivalent to running `python -m http.server` with no arguments. |
+| Serve a specific directory on a chosen port | `ghttp --directory /srv/www 9000` | Exposes `/srv/www` at <http://localhost:9000>. |
+| Bind to a specific interface | `ghttp --bind 192.168.1.5 8080` | Restricts listening to the provided IP address. |
+| Enable TLS with matching certificate and key | `ghttp --tls-cert cert.pem --tls-key key.pem 8443` | Serves HTTPS traffic; omit the port to keep the default 8000. |
+
 ### Key capabilities
 * Choose between HTTP/1.0 and HTTP/1.1 with `--protocol`/`-p`, allowing the server to tune connection headers and keep-alive behavior automatically.
 * Enable or disable TLS by supplying matching `--tls-cert` and `--tls-key` flags, making it easy to toggle encrypted serving without changing other options.
