@@ -41,3 +41,7 @@ so clients and intermediate caches decide their own policies.
 If you need custom caching semantics, wrap the file server handler with your own
 `http.Handler` that sets `Cache-Control`, `ETag`, or other headers before
 forwarding the request to the embedded `http.FileServer` instance.
+
+## License
+This project is distributed under the terms of the [MIT License](./LICENSE).
+Copyright (c) 2025 Vadym Tyemirov. Refer to the license file for the complete text, including permissions and limitations.
