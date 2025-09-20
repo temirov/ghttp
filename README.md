@@ -1,6 +1,15 @@
 # gHTTP
 gHTTP is a minimal Go file server that mirrors the `python -m http.server` CLI, adds structured request logging for every transfer, supports optional TLS termination, and shuts down gracefully when it receives system termination signals.
 
+## Installation
+Install gHTTP with the Go toolchain:
+
+```
+go install github.com/temirov/ghttp@latest
+```
+
+Go 1.24.6 or newer is required, matching the minimum version declared in `go.mod`.
+
 ### Key capabilities
 * Choose between HTTP/1.0 and HTTP/1.1 with `--protocol`/`-p`, allowing the server to tune connection headers and keep-alive behavior automatically.
 * Enable or disable TLS by supplying matching `--tls-cert` and `--tls-key` flags, making it easy to toggle encrypted serving without changing other options.
