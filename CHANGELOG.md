@@ -1,5 +1,20 @@
 # Changelog
 
+# Changelog
+
+## v0.2.0 — 2025-10-09
+
+### Added
+- Published a reusable `pkg/logging` service with console and JSON encoders, typed field helpers, and dedicated tests so other binaries can share gHTTP's logging stack.
+
+### Changed
+- Rewired the CLI, HTTPS workflow, and file server to emit all events through the centralized logging service, keeping request and lifecycle logs consistent across JSON and console modes.
+- Moved the logging implementation into `pkg/logging` to make the abstraction importable by external consumers without reaching into `internal/`.
+- Adjusted HTTPS certificate provisioning to install CA material into user-level trust stores on macOS, Linux, and Windows, removing the need for sudo escalation during install or uninstall.
+
+### Fixed
+- Eliminated repeated password prompts during certificate setup by targeting user-owned keychains/anchors and cleaning them up without elevated privileges.
+
 ## v0.1.2 — 2025-10-08
 
 ### Fixed
