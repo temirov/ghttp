@@ -156,6 +156,10 @@ func runHTTPSServe(cmd *cobra.Command) error {
 		return errors.New("certificate directory type mismatch")
 	}
 
+	return executeHTTPSServe(cmd, resources, serveConfiguration, hosts, certificateDirectory)
+}
+
+func executeHTTPSServe(cmd *cobra.Command, resources applicationResources, serveConfiguration ServeConfiguration, hosts []string, certificateDirectory string) error {
 	fileSystem := certificates.NewOperatingSystemFileSystem()
 	certificateAuthorityConfiguration := buildCertificateAuthorityConfiguration(certificateDirectory)
 	certificateAuthorityManager := certificates.NewCertificateAuthorityManager(fileSystem, certificates.NewSystemClock(), rand.Reader, certificateAuthorityConfiguration)

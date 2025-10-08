@@ -16,11 +16,8 @@ Leave Features, BugFixes, Improvements, Maintenance sections empty when all fixe
 
 ## BugFixes
 
--[ ] [GH-03] Allow dynamic https configuration. add --https flag which, when issued will a) install a self-signed certificate b) server the pages/directories through HTTPS protocol c) will uninstall the self-signed certificate on exit
 
 ## Maintenance
-
-
 
 
 

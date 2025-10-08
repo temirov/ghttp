@@ -43,7 +43,11 @@ func configureServeFlags(flagSet *pflag.FlagSet, configurationManager *viper.Vip
 	flagSet.String(flagNameBindAddress, configurationManager.GetString(configKeyServeBindAddress), "Specify bind address")
 	flagSet.String(flagNameDirectory, configurationManager.GetString(configKeyServeDirectory), "Serve files from this directory")
 	flagSet.String(flagNameProtocol, configurationManager.GetString(configKeyServeProtocol), "HTTP protocol version (HTTP/1.0 or HTTP/1.1)")
+	flagSet.Bool(flagNameHTTPS, configurationManager.GetBool(configKeyServeHTTPS), "Serve over HTTPS using a self-signed certificate")
+	flagSet.StringSlice(flagNameHTTPSHosts, configurationManager.GetStringSlice(configKeyHTTPSHosts), "Hostnames or IP addresses for automatic HTTPS certificates")
 	_ = configurationManager.BindPFlag(configKeyServeBindAddress, flagSet.Lookup(flagNameBindAddress))
 	_ = configurationManager.BindPFlag(configKeyServeDirectory, flagSet.Lookup(flagNameDirectory))
 	_ = configurationManager.BindPFlag(configKeyServeProtocol, flagSet.Lookup(flagNameProtocol))
+	_ = configurationManager.BindPFlag(configKeyServeHTTPS, flagSet.Lookup(flagNameHTTPS))
+	_ = configurationManager.BindPFlag(configKeyHTTPSHosts, flagSet.Lookup(flagNameHTTPSHosts))
 }

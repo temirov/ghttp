@@ -31,6 +31,7 @@ type ServeConfiguration struct {
 	TLSCertificatePath      string
 	TLSPrivateKeyPath       string
 	DisableDirectoryListing bool
+	EnableDynamicHTTPS      bool
 }
 
 func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey string, allowTLSFiles bool) error {
@@ -76,6 +77,10 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 
 	tlsCertificatePath := strings.TrimSpace(configurationManager.GetString(configKeyServeTLSCertificatePath))
 	tlsKeyPath := strings.TrimSpace(configurationManager.GetString(configKeyServeTLSKeyPath))
+	enableDynamicHTTPS := configurationManager.GetBool(configKeyServeHTTPS)
+	if !allowTLSFiles {
+		enableDynamicHTTPS = false
+	}
 	if !allowTLSFiles {
 		if tlsCertificatePath != "" || tlsKeyPath != "" {
 			return errors.New("tls certificate flags are not supported for this command")
@@ -85,6 +90,9 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 	}
 	if (tlsCertificatePath == "") != (tlsKeyPath == "") {
 		return errors.New("tls certificate and key must be provided together")
+	}
+	if enableDynamicHTTPS && (tlsCertificatePath != "" || tlsKeyPath != "") {
+		return errors.New("cannot combine https flag with tls certificate flags")
 	}
 	if tlsCertificatePath != "" {
 		if _, certErr := os.Stat(tlsCertificatePath); certErr != nil {
@@ -104,6 +112,7 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 		TLSCertificatePath:      tlsCertificatePath,
 		TLSPrivateKeyPath:       tlsKeyPath,
 		DisableDirectoryListing: disableDirectoryListing,
+		EnableDynamicHTTPS:      enableDynamicHTTPS,
 	}
 
 	cmd.SetContext(context.WithValue(cmd.Context(), contextKeyServeConfiguration, serveConfiguration))
@@ -122,6 +131,9 @@ func runServe(cmd *cobra.Command) error {
 	serveConfiguration, ok := serveConfigurationValue.(ServeConfiguration)
 	if !ok {
 		return errors.New("serve configuration has unexpected type")
+	}
+	if serveConfiguration.EnableDynamicHTTPS {
+		return serveWithDynamicHTTPS(cmd, resources, serveConfiguration)
 	}
 
 	fileServerConfiguration := server.FileServerConfiguration{
@@ -181,6 +193,44 @@ func getApplicationResources(cmd *cobra.Command) (applicationResources, error) {
 		return applicationResources{}, errors.New("invalid application resources type")
 	}
 	return resources, nil
+}
+
+func serveWithDynamicHTTPS(cmd *cobra.Command, resources applicationResources, serveConfiguration ServeConfiguration) error {
+	if err := prepareHTTPSContext(cmd); err != nil {
+		return err
+	}
+	setupErr := runHTTPSSetup(cmd)
+	if setupErr != nil {
+		return setupErr
+	}
+
+	hostsValue := cmd.Context().Value(contextKeyHTTPSHosts)
+	if hostsValue == nil {
+		return errors.New("https hosts missing")
+	}
+	hosts, ok := hostsValue.([]string)
+	if !ok {
+		return errors.New("https hosts type mismatch")
+	}
+
+	directoryValue := cmd.Context().Value(contextKeyHTTPSCertificateDir)
+	if directoryValue == nil {
+		return errors.New("certificate directory missing")
+	}
+	certificateDirectory, ok := directoryValue.(string)
+	if !ok {
+		return errors.New("certificate directory type mismatch")
+	}
+
+	serveErr := executeHTTPSServe(cmd, resources, serveConfiguration, hosts, certificateDirectory)
+	uninstallErr := runHTTPSUninstall(cmd)
+	if uninstallErr != nil {
+		if serveErr != nil {
+			return errors.Join(serveErr, uninstallErr)
+		}
+		return uninstallErr
+	}
+	return serveErr
 }
 
 func createSignalContext(parent context.Context, logger *zap.Logger) (context.Context, context.CancelFunc) {

@@ -34,6 +34,7 @@ const (
 	flagNameProtocol           = "protocol"
 	flagNameTLSCertificatePath = "tls-cert"
 	flagNameTLSKeyPath         = "tls-key"
+	flagNameHTTPS              = "https"
 	flagNameCertificateDir     = "cert-dir"
 	flagNameHTTPSHosts         = "host"
 
@@ -43,6 +44,7 @@ const (
 	configKeyServePort               = "serve.port"
 	configKeyServeTLSCertificatePath = "serve.tls_certificate"
 	configKeyServeTLSKeyPath         = "serve.tls_private_key"
+	configKeyServeHTTPS              = "serve.https"
 	configKeyHTTPSCertificateDir     = "https.certificate_directory"
 	configKeyHTTPSHosts              = "https.hosts"
 	configKeyHTTPSPort               = "https.port"
@@ -83,6 +85,7 @@ func Execute(ctx context.Context, arguments []string) int {
 	configurationManager.SetDefault(configKeyServePort, defaultServePort)
 	configurationManager.SetDefault(configKeyServeTLSCertificatePath, "")
 	configurationManager.SetDefault(configKeyServeTLSKeyPath, "")
+	configurationManager.SetDefault(configKeyServeHTTPS, false)
 	configurationManager.SetDefault(configKeyHTTPSCertificateDir, filepath.Join(applicationConfigDir, certificates.DefaultCertificateDirectoryName))
 	configurationManager.SetDefault(configKeyHTTPSHosts, []string{"localhost", "127.0.0.1", "::1"})
 	configurationManager.SetDefault(configKeyHTTPSPort, defaultHTTPSServePort)
