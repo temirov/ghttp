@@ -9,9 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"go.uber.org/zap"
-
 	"github.com/temirov/ghttp/internal/serverdetails"
+	"github.com/temirov/ghttp/pkg/logging"
 )
 
 func TestMarkdownFilesServedAsHTML(t *testing.T) {
@@ -109,7 +108,7 @@ func TestDirectoryListingDisabledWithoutMarkdown(t *testing.T) {
 }
 
 func newTestFileServerHandler(rootDirectory string, enableMarkdown bool, disableDirectoryListing bool) http.Handler {
-	fileServerInstance := NewFileServer(zap.NewNop(), serverdetails.NewServingAddressFormatter())
+	fileServerInstance := NewFileServer(logging.NewTestService(logging.TypeConsole), serverdetails.NewServingAddressFormatter())
 	configuration := FileServerConfiguration{
 		DirectoryPath:           rootDirectory,
 		EnableMarkdown:          enableMarkdown,

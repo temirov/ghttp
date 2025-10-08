@@ -8,10 +8,9 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 
 	"github.com/temirov/ghttp/internal/certificates"
-	"github.com/temirov/ghttp/internal/logging"
+	"github.com/temirov/ghttp/pkg/logging"
 )
 
 type contextKey string
@@ -53,13 +52,16 @@ const (
 	configKeyHTTPSCertificateDir     = "https.certificate_directory"
 	configKeyHTTPSHosts              = "https.hosts"
 	configKeyHTTPSPort               = "https.port"
+
+	logMessageFailedInitializeLogger = "failed to initialize logger"
+	logMessageResolveUserConfigDir   = "resolve user config directory"
+	logMessageCommandExecutionFailed = "command execution failed"
 )
 
 type applicationResources struct {
 	configurationManager *viper.Viper
-	logger               *zap.Logger
+	loggingService       *logging.Service
 	defaultConfigDirPath string
-	loggingType          string
 }
 
 func (resources *applicationResources) updateLogger(loggingType string) error {
@@ -67,21 +69,34 @@ func (resources *applicationResources) updateLogger(loggingType string) error {
 	if err != nil {
 		return err
 	}
-	newLogger, err := logging.NewLogger(normalizedType)
+	if resources.loggingService != nil && resources.loggingService.Type() == normalizedType {
+		return nil
+	}
+	service, err := logging.NewService(normalizedType)
 	if err != nil {
 		return err
 	}
-	if resources.logger != nil {
-		_ = resources.logger.Sync()
+	if resources.loggingService != nil {
+		_ = resources.loggingService.Sync()
 	}
-	resources.logger = newLogger
-	resources.loggingType = normalizedType
+	resources.loggingService = service
 	return nil
+}
+
+func (resources *applicationResources) loggingType() string {
+	if resources.loggingService == nil {
+		return logging.TypeConsole
+	}
+	return resources.loggingService.Type()
 }
 
 // Execute runs the CLI using the provided context and arguments, returning an exit code.
 func Execute(ctx context.Context, arguments []string) int {
-	initialLogger := logging.NewConsoleLogger()
+	initialService, err := logging.NewService(logging.TypeConsole)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v\n", logMessageFailedInitializeLogger, err)
+		return 1
+	}
 	configurationManager := viper.New()
 	configurationManager.SetEnvPrefix(strings.ToUpper(defaultApplicationName))
 	configurationManager.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -89,7 +104,7 @@ func Execute(ctx context.Context, arguments []string) int {
 
 	userConfigDir, userConfigErr := os.UserConfigDir()
 	if userConfigErr != nil {
-		initialLogger.Error("resolve user config directory", zap.Error(userConfigErr))
+		initialService.Error(logMessageResolveUserConfigDir, userConfigErr)
 		return 1
 	}
 	applicationConfigDir := filepath.Join(userConfigDir, defaultApplicationName)
@@ -108,19 +123,17 @@ func Execute(ctx context.Context, arguments []string) int {
 	configurationManager.SetDefault(configKeyHTTPSPort, defaultHTTPSServePort)
 	resources := &applicationResources{
 		configurationManager: configurationManager,
-		logger:               initialLogger,
+		loggingService:       initialService,
 		defaultConfigDirPath: applicationConfigDir,
-		loggingType:          logging.TypeConsole,
 	}
 	if err := resources.updateLogger(configurationManager.GetString(configKeyServeLoggingType)); err != nil {
-		resources.logger = initialLogger
-		resources.loggingType = logging.TypeConsole
-		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		resources.loggingService = initialService
+		resources.loggingService.Error(logMessageFailedInitializeLogger, err)
 		return 1
 	}
 	defer func() {
-		if resources.logger != nil {
-			_ = resources.logger.Sync()
+		if resources.loggingService != nil {
+			_ = resources.loggingService.Sync()
 		}
 	}()
 
@@ -130,7 +143,7 @@ func Execute(ctx context.Context, arguments []string) int {
 	rootCommand.SetArgs(arguments)
 
 	if executionErr := rootCommand.Execute(); executionErr != nil {
-		resources.logger.Error("command execution failed", zap.Error(executionErr))
+		resources.loggingService.Error(logMessageCommandExecutionFailed, executionErr)
 		return 1
 	}
 

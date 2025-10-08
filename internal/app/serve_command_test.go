@@ -7,9 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 
-	"github.com/temirov/ghttp/internal/logging"
+	"github.com/temirov/ghttp/pkg/logging"
 )
 
 func TestPrepareServeConfigurationRejectsHTTPSWithTLSFiles(t *testing.T) {
@@ -25,7 +24,7 @@ func TestPrepareServeConfigurationRejectsHTTPSWithTLSFiles(t *testing.T) {
 
 	resources := &applicationResources{
 		configurationManager: configurationManager,
-		logger:               zap.NewNop(),
+		loggingService:       logging.NewTestService(logging.TypeConsole),
 		defaultConfigDirPath: temporaryDirectory,
 	}
 
@@ -53,7 +52,7 @@ func TestPrepareServeConfigurationNoMarkdownFlagDisablesRendering(t *testing.T) 
 
 	resources := &applicationResources{
 		configurationManager: configurationManager,
-		logger:               zap.NewNop(),
+		loggingService:       logging.NewTestService(logging.TypeConsole),
 		defaultConfigDirPath: temporaryDirectory,
 	}
 
@@ -89,7 +88,7 @@ func TestPrepareServeConfigurationRejectsInvalidLoggingType(t *testing.T) {
 
 	resources := &applicationResources{
 		configurationManager: configurationManager,
-		logger:               zap.NewNop(),
+		loggingService:       logging.NewTestService(logging.TypeConsole),
 		defaultConfigDirPath: temporaryDirectory,
 	}
 

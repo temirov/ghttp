@@ -4,14 +4,15 @@ import (
 	"testing"
 
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
+
+	"github.com/temirov/ghttp/pkg/logging"
 )
 
 func TestNewRootCommandProvidesHTTPSFlagOnce(t *testing.T) {
 	configurationManager := viper.New()
 	resources := &applicationResources{
 		configurationManager: configurationManager,
-		logger:               zap.NewNop(),
+		loggingService:       logging.NewTestService(logging.TypeConsole),
 		defaultConfigDirPath: t.TempDir(),
 	}
 
@@ -26,7 +27,6 @@ func TestNewRootCommandProvidesHTTPSFlagOnce(t *testing.T) {
 		t.Fatalf("expected host flag to be registered")
 	}
 
-	// Constructing the HTTPS command should also avoid flag redefinition.
 	httpsCommand := newHTTPSCommand(resources)
 	if httpsCommand.Use != "https" {
 		t.Fatalf("unexpected https command use: %s", httpsCommand.Use)

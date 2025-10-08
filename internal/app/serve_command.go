@@ -13,15 +13,16 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 
-	"github.com/temirov/ghttp/internal/logging"
 	"github.com/temirov/ghttp/internal/server"
 	"github.com/temirov/ghttp/internal/serverdetails"
+	"github.com/temirov/ghttp/pkg/logging"
 )
 
 const (
 	environmentVariableDisableDirectoryListing = "GHTTPD_DISABLE_DIR_INDEX"
+	logFieldSignal                             = "signal"
+	logMessageReceivedSignal                   = "received signal"
 )
 
 type ServeConfiguration struct {
@@ -167,8 +168,8 @@ func runServe(cmd *cobra.Command) error {
 	}
 
 	servingAddressFormatter := serverdetails.NewServingAddressFormatter()
-	fileServerInstance := server.NewFileServer(resources.logger, servingAddressFormatter)
-	serveContext, cancel := createSignalContext(cmd.Context(), resources.logger)
+	fileServerInstance := server.NewFileServer(resources.loggingService, servingAddressFormatter)
+	serveContext, cancel := createSignalContext(cmd.Context(), resources.loggingService)
 	defer cancel()
 
 	return fileServerInstance.Serve(serveContext, fileServerConfiguration)
@@ -249,7 +250,7 @@ func serveWithDynamicHTTPS(cmd *cobra.Command, resources *applicationResources, 
 	return serveErr
 }
 
-func createSignalContext(parent context.Context, logger *zap.Logger) (context.Context, context.CancelFunc) {
+func createSignalContext(parent context.Context, loggingService *logging.Service) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(parent)
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, syscall.SIGINT, syscall.SIGTERM)
@@ -259,7 +260,9 @@ func createSignalContext(parent context.Context, logger *zap.Logger) (context.Co
 		case <-ctx.Done():
 			return
 		case receivedSignal := <-signalChannel:
-			logger.Info("received signal", zap.String("signal", receivedSignal.String()))
+			if loggingService != nil {
+				loggingService.Info(logMessageReceivedSignal, logging.String(logFieldSignal, receivedSignal.String()))
+			}
 			cancel()
 		}
 	}()

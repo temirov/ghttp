@@ -8,9 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/temirov/ghttp/internal/serverdetails"
+	"github.com/temirov/ghttp/pkg/logging"
 )
 
 func TestServeReturnsFriendlyErrorWhenPortInUse(t *testing.T) {
@@ -21,7 +20,7 @@ func TestServeReturnsFriendlyErrorWhenPortInUse(t *testing.T) {
 	tcpAddr := listener.Addr().(*net.TCPAddr)
 	portString := strconv.Itoa(tcpAddr.Port)
 
-	fileServer := NewFileServer(zap.NewNop(), serverdetails.NewServingAddressFormatter())
+	fileServer := NewFileServer(logging.NewTestService(logging.TypeConsole), serverdetails.NewServingAddressFormatter())
 	configuration := FileServerConfiguration{
 		BindAddress:             "127.0.0.1",
 		Port:                    portString,

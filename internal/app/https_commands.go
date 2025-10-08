@@ -12,13 +12,12 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 
 	"github.com/temirov/ghttp/internal/certificates"
 	"github.com/temirov/ghttp/internal/certificates/truststore"
-	"github.com/temirov/ghttp/internal/logging"
 	"github.com/temirov/ghttp/internal/server"
 	"github.com/temirov/ghttp/internal/serverdetails"
+	"github.com/temirov/ghttp/pkg/logging"
 )
 
 const (
@@ -29,6 +28,8 @@ const (
 	leafCertificateValidityDuration      = 30 * 24 * time.Hour
 	leafCertificateRenewalWindow         = 72 * time.Hour
 	linuxTrustedCertificatePath          = "/usr/local/share/ca-certificates/ghttp-development-ca.crt"
+	logFieldCertificateDirectory         = "certificate_directory"
+	logFieldHosts                        = "hosts"
 )
 
 func newHTTPSCommand(resources *applicationResources) *cobra.Command {
@@ -209,8 +210,8 @@ func executeHTTPSServe(cmd *cobra.Command, resources *applicationResources, serv
 
 	logServingHTTPSMessage(resources, certificateDirectory, hosts)
 	servingAddressFormatter := serverdetails.NewServingAddressFormatter()
-	fileServerInstance := server.NewFileServer(resources.logger, servingAddressFormatter)
-	serveContext, cancel := createSignalContext(cmd.Context(), resources.logger)
+	fileServerInstance := server.NewFileServer(resources.loggingService, servingAddressFormatter)
+	serveContext, cancel := createSignalContext(cmd.Context(), resources.loggingService)
 	defer cancel()
 
 	return fileServerInstance.Serve(serveContext, fileServerConfiguration)
@@ -330,23 +331,29 @@ func sanitizeHosts(hosts []string) []string {
 	return result
 }
 
-func zapCertificateDirectory(path string) zap.Field {
-	return zap.String("certificate_directory", path)
+func certificateDirectoryField(path string) logging.Field {
+	return logging.String(logFieldCertificateDirectory, path)
 }
 
 func logCertificateMessage(resources *applicationResources, message string, directory string) {
-	if resources.loggingType == logging.TypeConsole {
-		resources.logger.Info(fmt.Sprintf("%s (%s)", message, directory))
+	if resources.loggingService == nil {
 		return
 	}
-	resources.logger.Info(message, zapCertificateDirectory(directory))
+	if resources.loggingType() == logging.TypeConsole {
+		resources.loggingService.Info(fmt.Sprintf("%s (%s)", message, directory))
+		return
+	}
+	resources.loggingService.Info(message, certificateDirectoryField(directory))
 }
 
 func logServingHTTPSMessage(resources *applicationResources, directory string, hosts []string) {
-	if resources.loggingType == logging.TypeConsole {
-		displayHosts := strings.Join(hosts, ", ")
-		resources.logger.Info(fmt.Sprintf("serving https (%s) hosts=[%s]", directory, displayHosts))
+	if resources.loggingService == nil {
 		return
 	}
-	resources.logger.Info("serving https", zapCertificateDirectory(directory), zap.Strings("hosts", hosts))
+	if resources.loggingType() == logging.TypeConsole {
+		displayHosts := strings.Join(hosts, ", ")
+		resources.loggingService.Info(fmt.Sprintf("serving https (%s) hosts=[%s]", directory, displayHosts))
+		return
+	}
+	resources.loggingService.Info("serving https", certificateDirectoryField(directory), logging.Strings(logFieldHosts, hosts))
 }
