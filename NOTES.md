@@ -14,8 +14,6 @@ Leave Features, BugFixes, Improvements, Maintenance sections empty when all fixe
 
 ## Improvements
 
-- [ ] [GH-07] The default logging shall be plain text, and not structured. The default logging also must match the logging of `python -m http.server`. Add a flag --logging-type <json|CONSOLE> with CONSOLE being a default. Investigate the level of python -m http.server logging and implement it as console default.
-
 ## BugFixes
 
 ## Maintenance
