@@ -75,7 +75,7 @@ func newHTTPSServeCommand(resources applicationResources) *cobra.Command {
 		},
 	}
 
-	configureServeFlags(httpsServeCommand.Flags(), resources.configurationManager)
+	configureServeFlags(httpsServeCommand.Flags(), resources.configurationManager, false)
 	hostsDefault := resources.configurationManager.GetStringSlice(configKeyHTTPSHosts)
 	httpsServeCommand.Flags().StringSlice(flagNameHTTPSHosts, hostsDefault, "Hostnames or IPs to include in the certificate SAN")
 	_ = resources.configurationManager.BindPFlag(configKeyHTTPSHosts, httpsServeCommand.Flags().Lookup(flagNameHTTPSHosts))
