@@ -6,7 +6,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -27,7 +29,6 @@ const (
 	certificateAuthorityRenewalWindow    = 30 * 24 * time.Hour
 	leafCertificateValidityDuration      = 30 * 24 * time.Hour
 	leafCertificateRenewalWindow         = 72 * time.Hour
-	linuxTrustedCertificatePath          = "/usr/local/share/ca-certificates/ghttp-development-ca.crt"
 	logFieldCertificateDirectory         = "certificate_directory"
 	logFieldHosts                        = "hosts"
 )
@@ -305,9 +306,17 @@ func buildCertificateAuthorityConfiguration(certificateDirectory string) certifi
 
 func buildTrustStoreInstaller(fileSystem certificates.FileSystem) (truststore.Installer, error) {
 	commandRunner := certificates.NewExecutableRunner()
+	linuxDestinationPath := ""
+	if runtime.GOOS == "linux" {
+		homeDirectory, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return nil, fmt.Errorf("resolve home directory: %w", homeErr)
+		}
+		linuxDestinationPath = filepath.Join(homeDirectory, ".local", "share", "ca-certificates", certificates.DefaultRootCertificateFileName)
+	}
 	configuration := truststore.Configuration{
 		CertificateCommonName:           certificates.DefaultCertificateAuthorityCommonName,
-		LinuxCertificateDestinationPath: linuxTrustedCertificatePath,
+		LinuxCertificateDestinationPath: linuxDestinationPath,
 		LinuxCertificateFilePermissions: 0o644,
 		WindowsCertificateStoreName:     "Root",
 	}

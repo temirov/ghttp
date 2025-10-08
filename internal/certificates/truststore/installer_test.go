@@ -2,6 +2,7 @@ package truststore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -80,17 +81,20 @@ func TestInstallerFactories(t *testing.T) {
 				if len(commandRunner.executed) != 2 {
 					testingT.Fatalf("expected two commands, got %d", len(commandRunner.executed))
 				}
-				if !commandRunner.executed[0].privileged || !commandRunner.executed[1].privileged {
-					testingT.Fatalf("expected privileged execution for macos commands")
-				}
 				if commandRunner.executed[0].executable != commandNameSecurity {
 					testingT.Fatalf("expected security command, got %s", commandRunner.executed[0].executable)
 				}
 				if commandRunner.executed[0].arguments[0] != "add-trusted-cert" {
 					testingT.Fatalf("unexpected install arguments %v", commandRunner.executed[0].arguments)
 				}
+				if commandRunner.executed[0].privileged {
+					testingT.Fatalf("expected install to run without privileges")
+				}
 				if commandRunner.executed[1].arguments[0] != "delete-certificate" {
 					testingT.Fatalf("unexpected uninstall arguments %v", commandRunner.executed[1].arguments)
+				}
+				if commandRunner.executed[1].privileged {
+					testingT.Fatalf("expected uninstall to run without privileges")
 				}
 			},
 		},
@@ -111,16 +115,16 @@ func TestInstallerFactories(t *testing.T) {
 				if commandRunner.executed[0].executable != commandNameCertutil {
 					testingT.Fatalf("expected certutil, got %s", commandRunner.executed[0].executable)
 				}
-				if commandRunner.executed[0].arguments[0] != "-addstore" {
+				if len(commandRunner.executed[0].arguments) < 2 || commandRunner.executed[0].arguments[0] != "-user" || commandRunner.executed[0].arguments[1] != "-addstore" {
 					testingT.Fatalf("unexpected install arguments %v", commandRunner.executed[0].arguments)
 				}
-				if commandRunner.executed[1].arguments[0] != "-delstore" {
+				if len(commandRunner.executed[1].arguments) < 2 || commandRunner.executed[1].arguments[0] != "-user" || commandRunner.executed[1].arguments[1] != "-delstore" {
 					testingT.Fatalf("unexpected uninstall arguments %v", commandRunner.executed[1].arguments)
 				}
 			},
 		},
 		{
-			name:       "linux installer copies certificate and updates trust store",
+			name:       "linux installer configures user trust store",
 			factoryKey: "linux",
 			configuration: Configuration{
 				LinuxCertificateDestinationPath: linuxDestinationPath,
@@ -134,11 +138,24 @@ func TestInstallerFactories(t *testing.T) {
 			},
 			validateAfterInstall: func(testingT *testing.T, commandRunner *recordingCommandRunner, configuration Configuration, destinationPath string) {
 				testingT.Helper()
-				if len(commandRunner.executed) < 2 {
-					testingT.Fatalf("expected privileged commands for linux install")
+				if len(commandRunner.executed) == 0 {
+					testingT.Fatalf("expected at least one command for linux install")
 				}
-				if commandRunner.executed[0].executable != commandNameInstall || !commandRunner.executed[0].privileged {
-					testingT.Fatalf("expected install command with privileges, got %v", commandRunner.executed[0])
+				if commandRunner.executed[0].executable != commandNameTrust {
+					testingT.Fatalf("expected trust command, got %s", commandRunner.executed[0].executable)
+				}
+				if commandRunner.executed[0].arguments[0] != "anchor" {
+					testingT.Fatalf("unexpected trust arguments %v", commandRunner.executed[0].arguments)
+				}
+				if commandRunner.executed[0].privileged {
+					testingT.Fatalf("expected trust command to run without privileges")
+				}
+				content, readErr := os.ReadFile(destinationPath)
+				if readErr != nil {
+					testingT.Fatalf("read destination certificate: %v", readErr)
+				}
+				if string(content) != "certificate-data" {
+					testingT.Fatalf("unexpected certificate content %q", string(content))
 				}
 			},
 			validateAfterUninstall: func(testingT *testing.T, commandRunner *recordingCommandRunner, configuration Configuration, destinationPath string) {
@@ -147,11 +164,17 @@ func TestInstallerFactories(t *testing.T) {
 					testingT.Fatalf("expected commands during uninstall")
 				}
 				lastIndex := len(commandRunner.executed) - 1
-				if !commandRunner.executed[0].privileged {
-					testingT.Fatalf("expected privileged uninstall commands")
+				if commandRunner.executed[lastIndex].executable != commandNameTrust {
+					testingT.Fatalf("expected trust command for uninstall, got %s", commandRunner.executed[lastIndex].executable)
 				}
-				if commandRunner.executed[lastIndex].executable != commandNameUpdateCaCertificates {
-					testingT.Fatalf("expected final update-ca-certificates command, got %s", commandRunner.executed[lastIndex].executable)
+				if commandRunner.executed[lastIndex].arguments[0] != "anchor" || len(commandRunner.executed[lastIndex].arguments) < 2 || commandRunner.executed[lastIndex].arguments[1] != "--remove" {
+					testingT.Fatalf("unexpected uninstall arguments %v", commandRunner.executed[lastIndex].arguments)
+				}
+				if commandRunner.executed[lastIndex].privileged {
+					testingT.Fatalf("expected uninstall to run without privileges")
+				}
+				if _, err := os.Stat(destinationPath); !errors.Is(err, os.ErrNotExist) {
+					testingT.Fatalf("expected destination certificate to be removed, got err=%v", err)
 				}
 			},
 		},

@@ -5,18 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/temirov/ghttp/internal/certificates"
 )
 
 const (
-	commandNameSecurity             = "security"
-	commandNameCertutil             = "certutil"
-	commandNameUpdateCaCertificates = "update-ca-certificates"
-	commandNameTrust                = "trust"
-	commandNameInstall              = "install"
-	commandNameRm                   = "rm"
+	commandNameSecurity = "security"
+	commandNameCertutil = "certutil"
+	commandNameTrust    = "trust"
 )
 
 // Installer provisions and removes certificates from operating system trust stores.
@@ -64,22 +63,26 @@ func newMacOSInstaller(commandRunner certificates.CommandRunner, fileSystem cert
 	}
 	keychainPath := configuration.MacOSKeychainPath
 	if keychainPath == "" {
-		keychainPath = "/Library/Keychains/System.keychain"
+		homeDirectory, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return nil, fmt.Errorf("resolve home directory: %w", homeErr)
+		}
+		keychainPath = filepath.Join(homeDirectory, "Library", "Keychains", "login.keychain-db")
 	}
 	configuration.MacOSKeychainPath = keychainPath
-	return macOSInstaller{
+	return &macOSInstaller{
 		commandRunner: commandRunner,
 		fileSystem:    fileSystem,
 		configuration: configuration,
 	}, nil
 }
 
-func (installer macOSInstaller) Install(ctx context.Context, certificatePath string) error {
+func (installer *macOSInstaller) Install(ctx context.Context, certificatePath string) error {
 	if certificatePath == "" {
 		return errors.New("certificate path is required")
 	}
-	arguments := []string{"add-trusted-cert", "-d", "-r", "trustRoot", "-k", installer.configuration.MacOSKeychainPath, certificatePath}
-	err := installer.commandRunner.RunWithPrivileges(ctx, commandNameSecurity, arguments)
+	arguments := []string{"add-trusted-cert", "-r", "trustRoot", "-k", installer.configuration.MacOSKeychainPath, certificatePath}
+	err := installer.commandRunner.Run(ctx, commandNameSecurity, arguments)
 	if err != nil {
 		return fmt.Errorf("install certificate in macos keychain: %w", err)
 	}
@@ -90,9 +93,9 @@ func (installer macOSInstaller) Install(ctx context.Context, certificatePath str
 	return nil
 }
 
-func (installer macOSInstaller) Uninstall(ctx context.Context) error {
+func (installer *macOSInstaller) Uninstall(ctx context.Context) error {
 	arguments := []string{"delete-certificate", "-c", installer.configuration.CertificateCommonName, installer.configuration.MacOSKeychainPath}
-	err := installer.commandRunner.RunWithPrivileges(ctx, commandNameSecurity, arguments)
+	err := installer.commandRunner.Run(ctx, commandNameSecurity, arguments)
 	if err != nil {
 		return fmt.Errorf("remove certificate from macos keychain: %w", err)
 	}
@@ -107,23 +110,21 @@ type linuxInstaller struct {
 	commandRunner certificates.CommandRunner
 	fileSystem    certificates.FileSystem
 	configuration Configuration
+	installedPath string
 }
 
 func newLinuxInstaller(commandRunner certificates.CommandRunner, fileSystem certificates.FileSystem, configuration Configuration) (Installer, error) {
-	if configuration.LinuxCertificateDestinationPath == "" {
-		return nil, errors.New("linux installer requires destination path")
-	}
 	if configuration.LinuxCertificateFilePermissions == 0 {
 		configuration.LinuxCertificateFilePermissions = 0o644
 	}
-	return linuxInstaller{
+	return &linuxInstaller{
 		commandRunner: commandRunner,
 		fileSystem:    fileSystem,
 		configuration: configuration,
 	}, nil
 }
 
-func (installer linuxInstaller) Install(ctx context.Context, certificatePath string) error {
+func (installer *linuxInstaller) Install(ctx context.Context, certificatePath string) error {
 	if certificatePath == "" {
 		return errors.New("certificate path is required")
 	}
@@ -134,18 +135,26 @@ func (installer linuxInstaller) Install(ctx context.Context, certificatePath str
 	if !exists {
 		return fmt.Errorf("certificate path does not exist: %s", certificatePath)
 	}
-	installArgs := []string{"-D", "-m", fmt.Sprintf("%#o", installer.configuration.LinuxCertificateFilePermissions), certificatePath, installer.configuration.LinuxCertificateDestinationPath}
-	installErr := installer.commandRunner.RunWithPrivileges(ctx, commandNameInstall, installArgs)
-	if installErr != nil {
-		return fmt.Errorf("install linux trust store certificate: %w", installErr)
-	}
-	err := installer.commandRunner.RunWithPrivileges(ctx, commandNameUpdateCaCertificates, []string{})
-	if err != nil {
-		trustErr := installer.commandRunner.RunWithPrivileges(ctx, commandNameTrust, []string{"anchor", installer.configuration.LinuxCertificateDestinationPath})
-		if trustErr != nil {
-			return fmt.Errorf("update linux trust store: %w", errors.Join(err, trustErr))
+	anchorPath := certificatePath
+	if installer.configuration.LinuxCertificateDestinationPath != "" {
+		destinationDirectory := filepath.Dir(installer.configuration.LinuxCertificateDestinationPath)
+		if err := installer.fileSystem.EnsureDirectory(destinationDirectory, 0o755); err != nil {
+			return fmt.Errorf("ensure linux certificate directory: %w", err)
 		}
+		content, readErr := installer.fileSystem.ReadFile(certificatePath)
+		if readErr != nil {
+			return fmt.Errorf("read certificate: %w", readErr)
+		}
+		if err := installer.fileSystem.WriteFile(installer.configuration.LinuxCertificateDestinationPath, content, installer.configuration.LinuxCertificateFilePermissions); err != nil {
+			return fmt.Errorf("write linux trust certificate: %w", err)
+		}
+		anchorPath = installer.configuration.LinuxCertificateDestinationPath
 	}
+	installErr := installer.commandRunner.Run(ctx, commandNameTrust, []string{"anchor", anchorPath})
+	if installErr != nil {
+		return fmt.Errorf("configure linux trust store: %w", installErr)
+	}
+	installer.installedPath = anchorPath
 	firefoxErr := integrateFirefoxCertificates(ctx, installer.commandRunner, installer.fileSystem, installer.configuration, certificatePath)
 	if firefoxErr != nil {
 		return fmt.Errorf("configure firefox trust stores: %w", firefoxErr)
@@ -153,16 +162,21 @@ func (installer linuxInstaller) Install(ctx context.Context, certificatePath str
 	return nil
 }
 
-func (installer linuxInstaller) Uninstall(ctx context.Context) error {
-	removeErr := installer.commandRunner.RunWithPrivileges(ctx, commandNameRm, []string{"-f", installer.configuration.LinuxCertificateDestinationPath})
+func (installer *linuxInstaller) Uninstall(ctx context.Context) error {
+	anchorPath := installer.installedPath
+	if anchorPath == "" {
+		anchorPath = installer.configuration.LinuxCertificateDestinationPath
+	}
+	if anchorPath == "" {
+		return errors.New("linux installer has no recorded certificate path")
+	}
+	removeErr := installer.commandRunner.Run(ctx, commandNameTrust, []string{"anchor", "--remove", anchorPath})
 	if removeErr != nil {
 		return fmt.Errorf("remove linux trust store certificate: %w", removeErr)
 	}
-	err := installer.commandRunner.RunWithPrivileges(ctx, commandNameUpdateCaCertificates, []string{})
-	if err != nil {
-		trustErr := installer.commandRunner.RunWithPrivileges(ctx, commandNameTrust, []string{"anchor", "--remove", installer.configuration.LinuxCertificateDestinationPath})
-		if trustErr != nil {
-			return fmt.Errorf("update linux trust store removal: %w", errors.Join(err, trustErr))
+	if installer.configuration.LinuxCertificateDestinationPath != "" {
+		if err := installer.fileSystem.Remove(installer.configuration.LinuxCertificateDestinationPath); err != nil {
+			return fmt.Errorf("remove linux certificate file: %w", err)
 		}
 	}
 	firefoxErr := removeFirefoxCertificates(ctx, installer.commandRunner, installer.fileSystem, installer.configuration)
@@ -187,18 +201,18 @@ func newWindowsInstaller(commandRunner certificates.CommandRunner, fileSystem ce
 		return nil, errors.New("windows installer requires certificate common name")
 	}
 	configuration.WindowsCertificateStoreName = storeName
-	return windowsInstaller{
+	return &windowsInstaller{
 		commandRunner: commandRunner,
 		fileSystem:    fileSystem,
 		configuration: configuration,
 	}, nil
 }
 
-func (installer windowsInstaller) Install(ctx context.Context, certificatePath string) error {
+func (installer *windowsInstaller) Install(ctx context.Context, certificatePath string) error {
 	if certificatePath == "" {
 		return errors.New("certificate path is required")
 	}
-	arguments := []string{"-addstore", "-f", installer.configuration.WindowsCertificateStoreName, certificatePath}
+	arguments := []string{"-user", "-addstore", "-f", installer.configuration.WindowsCertificateStoreName, certificatePath}
 	err := installer.commandRunner.Run(ctx, commandNameCertutil, arguments)
 	if err != nil {
 		return fmt.Errorf("install certificate in windows store: %w", err)
@@ -210,8 +224,8 @@ func (installer windowsInstaller) Install(ctx context.Context, certificatePath s
 	return nil
 }
 
-func (installer windowsInstaller) Uninstall(ctx context.Context) error {
-	arguments := []string{"-delstore", installer.configuration.WindowsCertificateStoreName, installer.configuration.CertificateCommonName}
+func (installer *windowsInstaller) Uninstall(ctx context.Context) error {
+	arguments := []string{"-user", "-delstore", installer.configuration.WindowsCertificateStoreName, installer.configuration.CertificateCommonName}
 	err := installer.commandRunner.Run(ctx, commandNameCertutil, arguments)
 	if err != nil {
 		return fmt.Errorf("remove certificate from windows store: %w", err)
