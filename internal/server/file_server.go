@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -144,6 +146,11 @@ func (fileServer FileServer) Serve(ctx context.Context, configuration FileServer
 		return nil
 	case serveErr := <-serverErrors:
 		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			if isAddressInUse(serveErr) {
+				friendlyMessage := formatAddressInUseMessage(configuration)
+				eventLogger.Error(friendlyMessage)
+				return fmt.Errorf("address in use: %s", friendlyMessage)
+			}
 			eventLogger.Error(logMessageServerError, zap.Error(serveErr))
 			return fmt.Errorf("serve http: %w", serveErr)
 		}
@@ -266,4 +273,30 @@ func (recorder *statusRecorder) Write(content []byte) (int, error) {
 func newStatusRecorder(responseWriter http.ResponseWriter) *statusRecorder {
 	recorder := &statusRecorder{ResponseWriter: responseWriter, statusCode: http.StatusOK}
 	return recorder
+}
+
+func formatAddressInUseMessage(configuration FileServerConfiguration) string {
+	bindAddress := configuration.BindAddress
+	if strings.TrimSpace(bindAddress) == "" {
+		bindAddress = "0.0.0.0"
+	}
+	return fmt.Sprintf("Address already in use: %s:%s", bindAddress, configuration.Port)
+}
+
+func isAddressInUse(err error) bool {
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if errors.Is(opErr.Err, syscall.EADDRINUSE) {
+			return true
+		}
+		var syscallErr *os.SyscallError
+		if errors.As(opErr.Err, &syscallErr) {
+			return errors.Is(syscallErr.Err, syscall.EADDRINUSE)
+		}
+	}
+	var syscallErr *os.SyscallError
+	if errors.As(err, &syscallErr) {
+		return errors.Is(syscallErr.Err, syscall.EADDRINUSE)
+	}
+	return errors.Is(err, syscall.EADDRINUSE)
 }
