@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.2 — 2025-10-08
+
+### Fixed
+- Corrected the Go module path to `github.com/temirov/ghttp`, aligning imports across the project.
+
 ## v0.1.1 — 2025-10-07
 
 ### Added
