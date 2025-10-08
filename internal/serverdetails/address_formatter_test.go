@@ -12,6 +12,9 @@ const (
 	testNameLoopbackBindAddress           = "loopback bind address becomes localhost"
 	testNameExternalBindAddressPreserved  = "external bind address is preserved"
 	testNameHostnameWithWhitespaceTrimmed = "hostname with whitespace is trimmed"
+	testNameFormatURLHTTP                 = "format url for http scheme"
+	testNameFormatURLHTTPS                = "format url for https scheme"
+	testNameFormatURLWithSchemeSuffix     = "format url trims scheme suffix"
 	bindAddressEmptyValue                 = ""
 	bindAddressWildcardValue              = "0.0.0.0"
 	bindAddressLoopbackValue              = "127.0.0.1"
@@ -22,6 +25,8 @@ const (
 	expectedLocalhostDisplay              = "localhost:8000"
 	expectedExternalDisplay               = "192.168.10.50:8000"
 	expectedHostnameDisplay               = "example.com:8000"
+	expectedHTTPURL                       = "http://localhost:8000"
+	expectedHTTPSURL                      = "https://localhost:8000"
 )
 
 func TestServingAddressFormatter_FormatHostAndPortForLogging(t *testing.T) {
@@ -78,5 +83,45 @@ func TestServingAddressFormatter_FormatHostAndPortForLoggingUsesNetJoinHostPort(
 	actualAddress := formatter.FormatHostAndPortForLogging(bindAddressIpvSixValue, portValue)
 	if actualAddress != expectedAddress {
 		t.Fatalf("expected IPv6 address to remain bracketed: expected %s, got %s", expectedAddress, actualAddress)
+	}
+}
+
+func TestServingAddressFormatter_FormatURLForLogging(t *testing.T) {
+	formatter := serverdetails.NewServingAddressFormatter()
+
+	testCases := []struct {
+		name        string
+		scheme      string
+		bindAddress string
+		expected    string
+	}{
+		{
+			name:        testNameFormatURLHTTP,
+			scheme:      "http",
+			bindAddress: bindAddressEmptyValue,
+			expected:    expectedHTTPURL,
+		},
+		{
+			name:        testNameFormatURLHTTPS,
+			scheme:      "https",
+			bindAddress: bindAddressEmptyValue,
+			expected:    expectedHTTPSURL,
+		},
+		{
+			name:        testNameFormatURLWithSchemeSuffix,
+			scheme:      "https://",
+			bindAddress: bindAddressEmptyValue,
+			expected:    expectedHTTPSURL,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			actual := formatter.FormatURLForLogging(testCase.scheme, testCase.bindAddress, portValue)
+			if actual != testCase.expected {
+				t.Fatalf("expected url %s, got %s", testCase.expected, actual)
+			}
+		})
 	}
 }
