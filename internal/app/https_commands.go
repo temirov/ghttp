@@ -16,6 +16,7 @@ import (
 
 	"github.com/temirov/ghttp/internal/certificates"
 	"github.com/temirov/ghttp/internal/certificates/truststore"
+	"github.com/temirov/ghttp/internal/logging"
 	"github.com/temirov/ghttp/internal/server"
 	"github.com/temirov/ghttp/internal/serverdetails"
 )
@@ -120,7 +121,7 @@ func runHTTPSSetup(cmd *cobra.Command) error {
 		return fmt.Errorf("install certificate authority: %w", installErr)
 	}
 
-	resources.logger.Info("certificate authority installed", zapCertificateDirectory(certificateDirectory))
+	logCertificateMessage(resources, "certificate authority installed", certificateDirectory)
 	return nil
 }
 
@@ -206,7 +207,7 @@ func executeHTTPSServe(cmd *cobra.Command, resources *applicationResources, serv
 		},
 	}
 
-	resources.logger.Info("serving https", zapCertificateDirectory(certificateDirectory), zap.Strings("hosts", hosts))
+	logServingHTTPSMessage(resources, certificateDirectory, hosts)
 	servingAddressFormatter := serverdetails.NewServingAddressFormatter()
 	fileServerInstance := server.NewFileServer(resources.logger, servingAddressFormatter)
 	serveContext, cancel := createSignalContext(cmd.Context(), resources.logger)
@@ -249,7 +250,7 @@ func runHTTPSUninstall(cmd *cobra.Command) error {
 	if len(removalErrors) > 0 {
 		return errors.Join(removalErrors...)
 	}
-	resources.logger.Info("certificate authority uninstalled", zapCertificateDirectory(certificateDirectory))
+	logCertificateMessage(resources, "certificate authority uninstalled", certificateDirectory)
 	return nil
 }
 
@@ -331,4 +332,21 @@ func sanitizeHosts(hosts []string) []string {
 
 func zapCertificateDirectory(path string) zap.Field {
 	return zap.String("certificate_directory", path)
+}
+
+func logCertificateMessage(resources *applicationResources, message string, directory string) {
+	if resources.loggingType == logging.TypeConsole {
+		resources.logger.Info(fmt.Sprintf("%s (%s)", message, directory))
+		return
+	}
+	resources.logger.Info(message, zapCertificateDirectory(directory))
+}
+
+func logServingHTTPSMessage(resources *applicationResources, directory string, hosts []string) {
+	if resources.loggingType == logging.TypeConsole {
+		displayHosts := strings.Join(hosts, ", ")
+		resources.logger.Info(fmt.Sprintf("serving https (%s) hosts=[%s]", directory, displayHosts))
+		return
+	}
+	resources.logger.Info("serving https", zapCertificateDirectory(directory), zap.Strings("hosts", hosts))
 }

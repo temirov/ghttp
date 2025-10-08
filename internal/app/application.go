@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,10 +59,15 @@ type applicationResources struct {
 	configurationManager *viper.Viper
 	logger               *zap.Logger
 	defaultConfigDirPath string
+	loggingType          string
 }
 
 func (resources *applicationResources) updateLogger(loggingType string) error {
-	newLogger, err := logging.NewLogger(loggingType)
+	normalizedType, err := logging.NormalizeType(loggingType)
+	if err != nil {
+		return err
+	}
+	newLogger, err := logging.NewLogger(normalizedType)
 	if err != nil {
 		return err
 	}
@@ -69,16 +75,13 @@ func (resources *applicationResources) updateLogger(loggingType string) error {
 		_ = resources.logger.Sync()
 	}
 	resources.logger = newLogger
+	resources.loggingType = normalizedType
 	return nil
 }
 
 // Execute runs the CLI using the provided context and arguments, returning an exit code.
 func Execute(ctx context.Context, arguments []string) int {
-	logger := logging.NewConsoleLogger()
-	defer func() {
-		_ = logger.Sync()
-	}()
-
+	initialLogger := logging.NewConsoleLogger()
 	configurationManager := viper.New()
 	configurationManager.SetEnvPrefix(strings.ToUpper(defaultApplicationName))
 	configurationManager.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -86,7 +89,7 @@ func Execute(ctx context.Context, arguments []string) int {
 
 	userConfigDir, userConfigErr := os.UserConfigDir()
 	if userConfigErr != nil {
-		logger.Error("resolve user config directory", zap.Error(userConfigErr))
+		initialLogger.Error("resolve user config directory", zap.Error(userConfigErr))
 		return 1
 	}
 	applicationConfigDir := filepath.Join(userConfigDir, defaultApplicationName)
@@ -103,12 +106,23 @@ func Execute(ctx context.Context, arguments []string) int {
 	configurationManager.SetDefault(configKeyHTTPSCertificateDir, filepath.Join(applicationConfigDir, certificates.DefaultCertificateDirectoryName))
 	configurationManager.SetDefault(configKeyHTTPSHosts, []string{"localhost", "127.0.0.1", "::1"})
 	configurationManager.SetDefault(configKeyHTTPSPort, defaultHTTPSServePort)
-
 	resources := &applicationResources{
 		configurationManager: configurationManager,
-		logger:               logger,
+		logger:               initialLogger,
 		defaultConfigDirPath: applicationConfigDir,
+		loggingType:          logging.TypeConsole,
 	}
+	if err := resources.updateLogger(configurationManager.GetString(configKeyServeLoggingType)); err != nil {
+		resources.logger = initialLogger
+		resources.loggingType = logging.TypeConsole
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		return 1
+	}
+	defer func() {
+		if resources.logger != nil {
+			_ = resources.logger.Sync()
+		}
+	}()
 
 	rootCommand := newRootCommand(resources)
 	baseContext := context.WithValue(ctx, contextKeyApplicationResources, resources)
@@ -116,7 +130,7 @@ func Execute(ctx context.Context, arguments []string) int {
 	rootCommand.SetArgs(arguments)
 
 	if executionErr := rootCommand.Execute(); executionErr != nil {
-		logger.Error("command execution failed", zap.Error(executionErr))
+		resources.logger.Error("command execution failed", zap.Error(executionErr))
 		return 1
 	}
 
