@@ -3,6 +3,7 @@
 package serverdetails
 
 import (
+	"fmt"
 	"net"
 	"strings"
 )
@@ -33,4 +34,10 @@ func (formatter ServingAddressFormatter) FormatHostAndPortForLogging(bindAddress
 		sanitizedHost = loggingDisplayHostLocalhostValue
 	}
 	return net.JoinHostPort(sanitizedHost, port)
+}
+
+// FormatURLForLogging returns a full URL with scheme for logging output.
+func (formatter ServingAddressFormatter) FormatURLForLogging(scheme string, bindAddress string, port string) string {
+	normalizedScheme := strings.TrimSuffix(strings.TrimSpace(scheme), "://")
+	return fmt.Sprintf("%s://%s", normalizedScheme, formatter.FormatHostAndPortForLogging(bindAddress, port))
 }

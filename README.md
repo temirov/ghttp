@@ -1,30 +1,47 @@
 # gHTTP
-gHTTP is a minimal Go file server that mirrors the `python -m http.server` CLI, adds structured request logging for every transfer, supports optional TLS termination, and shuts down gracefully when it receives system termination signals.
+gHTTP is a Go-powered file server that mirrors the ergonomics of `python -m http.server`, adds structured zap-based request logging, integrates Cobra + Viper configuration, and now provisions self-signed HTTPS certificates that can be trusted system-wide for local development.
 
 ## Installation
 Install gHTTP with the Go toolchain:
 
 ```
-go install github.com/temirov/ghttp@latest
+go install github.com/temirov/ghttp/cmd/ghttp@latest
 ```
 
 Go 1.24.6 or newer is required, matching the minimum version declared in `go.mod`.
 
-After installation the `ghttp` binary is placed in `$GOBIN` (or `$GOPATH/bin`), and it accepts an optional positional `PORT` argument that mirrors `python -m http.server`.
+After installation the `ghttp` binary is placed in `$GOBIN` (or `$GOPATH/bin`). The root command accepts an optional positional `PORT` argument so existing workflows keep working.
 
 ### Usage examples
 
 | Scenario | Example command | Notes |
 | --- | --- | --- |
-| Serve the current working directory on the default port 8000 | `ghttp` | Equivalent to running `python -m http.server` with no arguments. |
+| Serve the current working directory on the default port 8000 | `ghttp` | Mirrors `python -m http.server` with structured logging. |
 | Serve a specific directory on a chosen port | `ghttp --directory /srv/www 9000` | Exposes `/srv/www` at <http://localhost:9000>. |
 | Bind to a specific interface | `ghttp --bind 192.168.1.5 8080` | Restricts listening to the provided IP address. |
-| Enable TLS with matching certificate and key | `ghttp --tls-cert cert.pem --tls-key key.pem 8443` | Serves HTTPS traffic; omit the port to keep the default 8000. |
+| Serve HTTPS with an existing certificate | `ghttp --tls-cert cert.pem --tls-key key.pem 8443` | Keeps backwards-compatible manual TLS support. |
+| Provision and trust the development root CA | `ghttp https setup` | Generates `~/.config/ghttp/certs/ca.pem` and installs it into the OS trust store (may require elevated privileges). |
+| Serve HTTPS with self-signed certificates | `ghttp --https 8443` | Installs the development CA, serves HTTPS, and removes credentials on exit. |
+| Disable Markdown rendering | `ghttp --no-md` | Serves raw Markdown assets without HTML conversion. |
+| Switch logging format | `ghttp --logging-type JSON` | Emits structured JSON logs instead of the default console view. |
+| Remove the development certificates | `ghttp https uninstall` | Deletes local key material and removes the CA from the OS trust store. |
 
 ### Key capabilities
-* Choose between HTTP/1.0 and HTTP/1.1 with `--protocol`/`-p`, allowing the server to tune connection headers and keep-alive behavior automatically.
-* Enable or disable TLS by supplying matching `--tls-cert` and `--tls-key` flags, making it easy to toggle encrypted serving without changing other options.
-* Suppress automatic directory listings by exporting `GHTTPD_DISABLE_DIR_INDEX=1`, ensuring the file server denies directory browsing when required.
+* Choose between HTTP/1.0 and HTTP/1.1 with `--protocol`/`-p`; the server tunes keep-alive behaviour automatically.
+* Provision a development certificate authority with `ghttp --https` (or `ghttp https setup` for manual control), storing it at `~/.config/ghttp/certs` and installing it into macOS, Linux, or Windows trust stores using native tooling.
+* Issue SAN-aware leaf certificates on demand whenever HTTPS is enabled, covering `localhost`, `127.0.0.1`, `::1`, and additional hosts supplied via repeated `--host` flags or Viper configuration.
+* Render Markdown files (`*.md`) to HTML automatically, treat `README.md` as a directory landing page, and skip the feature entirely with `--no-md` or `serve.no_markdown: true` in configuration.
+* When Firefox is installed, automatically configure its profiles to trust the generated certificates so browser warnings disappear on the next restart.
+* Suppress automatic directory listings by exporting `GHTTPD_DISABLE_DIR_INDEX=1`; the handler returns HTTP 403 for directory roots.
+* Configure every flag via `~/.config/ghttp/config.yaml` or environment variables prefixed with `GHTTP_` (for example, `GHTTP_SERVE_DIRECTORY=/srv/www`).
+
+### Browser trust behaviour
+| Browser | Trust source | Restart needed? | Notes |
+| --- | --- | --- | --- |
+| Safari (macOS) | System keychain | No | macOS keychain updates apply immediately to Safari and other WebKit clients. |
+| Chrome / Edge | OS certificate store | No | Chromium-based browsers rely on the OS trust store and accept the CA on the next handshake. |
+| Firefox | Firefox NSS store or enterprise roots | Yes | Profiles are updated automatically: if `certutil` is available the CA is imported, otherwise `security.enterprise_roots.enabled` is set via `user.js`. Restart Firefox to apply the change. |
+| Other browsers | OS certificate store | No | Most modern browsers reuse the system trust store; no manual action required. |
 
 ## File Serving Behavior
 The server delegates file handling to the Go standard library's `http.FileServer`,
