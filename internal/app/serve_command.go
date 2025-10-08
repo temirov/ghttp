@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/temirov/ghttp/internal/logging"
 	"github.com/temirov/ghttp/internal/server"
 	"github.com/temirov/ghttp/internal/serverdetails"
 )
@@ -81,15 +82,9 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 	tlsKeyPath := strings.TrimSpace(configurationManager.GetString(configKeyServeTLSKeyPath))
 	markdownDisabled := configurationManager.GetBool(configKeyServeNoMarkdown)
 	enableDynamicHTTPS := configurationManager.GetBool(configKeyServeHTTPS)
-	loggingTypeValue := strings.ToUpper(strings.TrimSpace(configurationManager.GetString(configKeyServeLoggingType)))
-	if loggingTypeValue == "" {
-		loggingTypeValue = defaultLoggingType
-	}
-	switch loggingTypeValue {
-	case loggingTypeConsole, loggingTypeJSON:
-		// valid
-	default:
-		return fmt.Errorf("unsupported logging type %s", loggingTypeValue)
+	loggingTypeValue, normalizeErr := logging.NormalizeType(configurationManager.GetString(configKeyServeLoggingType))
+	if normalizeErr != nil {
+		return normalizeErr
 	}
 	if !allowTLSFiles {
 		enableDynamicHTTPS = false
@@ -128,6 +123,10 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 		EnableDynamicHTTPS:      enableDynamicHTTPS,
 		EnableMarkdown:          !markdownDisabled,
 		LoggingType:             loggingTypeValue,
+	}
+
+	if loggerErr := resources.updateLogger(loggingTypeValue); loggerErr != nil {
+		return fmt.Errorf("configure logger: %w", loggerErr)
 	}
 
 	cmd.SetContext(context.WithValue(cmd.Context(), contextKeyServeConfiguration, serveConfiguration))
@@ -200,19 +199,19 @@ func loadConfigurationFile(cmd *cobra.Command) error {
 	return nil
 }
 
-func getApplicationResources(cmd *cobra.Command) (applicationResources, error) {
+func getApplicationResources(cmd *cobra.Command) (*applicationResources, error) {
 	resourceValue := cmd.Context().Value(contextKeyApplicationResources)
 	if resourceValue == nil {
-		return applicationResources{}, errors.New("application resources not configured")
+		return nil, errors.New("application resources not configured")
 	}
-	resources, ok := resourceValue.(applicationResources)
+	resources, ok := resourceValue.(*applicationResources)
 	if !ok {
-		return applicationResources{}, errors.New("invalid application resources type")
+		return nil, errors.New("invalid application resources type")
 	}
 	return resources, nil
 }
 
-func serveWithDynamicHTTPS(cmd *cobra.Command, resources applicationResources, serveConfiguration ServeConfiguration) error {
+func serveWithDynamicHTTPS(cmd *cobra.Command, resources *applicationResources, serveConfiguration ServeConfiguration) error {
 	if err := prepareHTTPSContext(cmd); err != nil {
 		return err
 	}

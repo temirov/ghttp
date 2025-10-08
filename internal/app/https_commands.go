@@ -30,7 +30,7 @@ const (
 	linuxTrustedCertificatePath          = "/usr/local/share/ca-certificates/ghttp-development-ca.crt"
 )
 
-func newHTTPSCommand(resources applicationResources) *cobra.Command {
+func newHTTPSCommand(resources *applicationResources) *cobra.Command {
 	httpsCommand := &cobra.Command{
 		Use:   "https",
 		Short: "Manage self-signed HTTPS certificates",
@@ -47,7 +47,7 @@ func newHTTPSCommand(resources applicationResources) *cobra.Command {
 	return httpsCommand
 }
 
-func newHTTPSSetupCommand(resources applicationResources) *cobra.Command {
+func newHTTPSSetupCommand(resources *applicationResources) *cobra.Command {
 	return &cobra.Command{
 		Use:   "setup",
 		Short: "Generate and install the development certificate authority",
@@ -57,7 +57,7 @@ func newHTTPSSetupCommand(resources applicationResources) *cobra.Command {
 	}
 }
 
-func newHTTPSServeCommand(resources applicationResources) *cobra.Command {
+func newHTTPSServeCommand(resources *applicationResources) *cobra.Command {
 	httpsServeCommand := &cobra.Command{
 		Use:           "serve [port]",
 		Short:         "Serve HTTPS using the generated certificates",
@@ -83,7 +83,7 @@ func newHTTPSServeCommand(resources applicationResources) *cobra.Command {
 	return httpsServeCommand
 }
 
-func newHTTPSUninstallCommand(resources applicationResources) *cobra.Command {
+func newHTTPSUninstallCommand(resources *applicationResources) *cobra.Command {
 	return &cobra.Command{
 		Use:   "uninstall",
 		Short: "Remove the development certificate authority from the trust store",
@@ -159,7 +159,7 @@ func runHTTPSServe(cmd *cobra.Command) error {
 	return executeHTTPSServe(cmd, resources, serveConfiguration, hosts, certificateDirectory)
 }
 
-func executeHTTPSServe(cmd *cobra.Command, resources applicationResources, serveConfiguration ServeConfiguration, hosts []string, certificateDirectory string) error {
+func executeHTTPSServe(cmd *cobra.Command, resources *applicationResources, serveConfiguration ServeConfiguration, hosts []string, certificateDirectory string) error {
 	fileSystem := certificates.NewOperatingSystemFileSystem()
 	certificateAuthorityConfiguration := buildCertificateAuthorityConfiguration(certificateDirectory)
 	certificateAuthorityManager := certificates.NewCertificateAuthorityManager(fileSystem, certificates.NewSystemClock(), rand.Reader, certificateAuthorityConfiguration)

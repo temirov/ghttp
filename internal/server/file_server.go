@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
+	"github.com/temirov/ghttp/internal/logging"
 	"github.com/temirov/ghttp/internal/serverdetails"
 )
 
@@ -26,8 +25,6 @@ const (
 	connectionCloseValue                 = "close"
 	httpProtocolVersionOneZero           = "HTTP/1.0"
 	errorMessageDirectoryListingDisabled = "Directory listing disabled"
-	loggingTypeConsole                   = "CONSOLE"
-	loggingTypeJSON                      = "JSON"
 	consoleRequestTimeLayout             = "02/Jan/2006 15:04:05"
 	logFieldDirectory                    = "directory"
 	logFieldProtocol                     = "protocol"
@@ -49,14 +46,6 @@ const (
 	shutdownGracePeriod                  = 3 * time.Second
 )
 
-// TLSConfiguration describes transport layer security configuration.
-type TLSConfiguration struct {
-	CertificatePath   string
-	PrivateKeyPath    string
-	LoadedCertificate *tls.Certificate
-}
-
-// FileServerConfiguration declares how the HTTP server should run.
 type FileServerConfiguration struct {
 	BindAddress             string
 	Port                    string
@@ -66,6 +55,13 @@ type FileServerConfiguration struct {
 	EnableMarkdown          bool
 	LoggingType             string
 	TLS                     *TLSConfiguration
+}
+
+// TLSConfiguration describes transport layer security configuration.
+type TLSConfiguration struct {
+	CertificatePath   string
+	PrivateKeyPath    string
+	LoadedCertificate *tls.Certificate
 }
 
 // FileServer serves files over HTTP or HTTPS.
@@ -88,10 +84,10 @@ func (fileServer FileServer) Serve(ctx context.Context, configuration FileServer
 	eventLogger := fileServer.logger
 	loggingType := configuration.LoggingType
 	if loggingType == "" {
-		loggingType = loggingTypeConsole
+		loggingType = logging.TypeConsole
 	}
-	if loggingType == loggingTypeConsole {
-		eventLogger = newConsoleLogger()
+	if loggingType == logging.TypeConsole {
+		eventLogger = logging.NewConsoleLogger()
 	}
 	loggingHandler := fileServer.wrapWithLogging(wrappedHandler, loggingType, eventLogger)
 
@@ -112,7 +108,7 @@ func (fileServer FileServer) Serve(ctx context.Context, configuration FileServer
 	}
 
 	currentTime := time.Now().Format(defaultLogTimeLayout)
-	if loggingType == loggingTypeConsole {
+	if loggingType == logging.TypeConsole {
 		startMessage := formatConsoleStartMessage(configuration, certificateConfigured, displayAddress)
 		eventLogger.Info(startMessage)
 	} else {
@@ -178,7 +174,7 @@ func (fileServer FileServer) wrapWithHeaders(handler http.Handler, protocolVersi
 
 func (fileServer FileServer) wrapWithLogging(handler http.Handler, loggingType string, logger *zap.Logger) http.Handler {
 	switch loggingType {
-	case loggingTypeConsole:
+	case logging.TypeConsole:
 		return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 			recordedWriter := newStatusRecorder(responseWriter)
 			startTime := time.Now()
@@ -196,21 +192,6 @@ func (fileServer FileServer) wrapWithLogging(handler http.Handler, loggingType s
 			logger.Info(logMessageRequestCompleted, zap.String(logFieldMethod, request.Method), zap.String(logFieldPath, request.URL.Path), zap.Int(logFieldStatus, recordedWriter.statusCode), zap.Duration(logFieldDuration, duration), zap.String(logFieldRemote, request.RemoteAddr))
 		})
 	}
-}
-
-func newConsoleLogger() *zap.Logger {
-	encoderConfig := zapcore.EncoderConfig{
-		MessageKey:    "msg",
-		LevelKey:      "",
-		TimeKey:       "",
-		NameKey:       "",
-		CallerKey:     "",
-		FunctionKey:   "",
-		StacktraceKey: "",
-		LineEnding:    zapcore.DefaultLineEnding,
-	}
-	core := zapcore.NewCore(zapcore.NewConsoleEncoder(encoderConfig), zapcore.AddSync(os.Stdout), zapcore.InfoLevel)
-	return zap.New(core)
 }
 
 func formatConsoleStartMessage(configuration FileServerConfiguration, certificateConfigured bool, displayAddress string) string {

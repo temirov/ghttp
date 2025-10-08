@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/temirov/ghttp/internal/certificates"
+	"github.com/temirov/ghttp/internal/logging"
 )
 
 type contextKey string
@@ -27,7 +27,6 @@ const (
 	defaultConfigFileName  = "config"
 	defaultConfigFileType  = "yaml"
 	defaultApplicationName = "ghttp"
-	defaultLoggingType     = loggingTypeConsole
 
 	flagNameConfigFile         = "config"
 	flagNameBindAddress        = "bind"
@@ -55,24 +54,27 @@ const (
 	configKeyHTTPSPort               = "https.port"
 )
 
-const (
-	loggingTypeConsole = "CONSOLE"
-	loggingTypeJSON    = "JSON"
-)
-
 type applicationResources struct {
 	configurationManager *viper.Viper
 	logger               *zap.Logger
 	defaultConfigDirPath string
 }
 
+func (resources *applicationResources) updateLogger(loggingType string) error {
+	newLogger, err := logging.NewLogger(loggingType)
+	if err != nil {
+		return err
+	}
+	if resources.logger != nil {
+		_ = resources.logger.Sync()
+	}
+	resources.logger = newLogger
+	return nil
+}
+
 // Execute runs the CLI using the provided context and arguments, returning an exit code.
 func Execute(ctx context.Context, arguments []string) int {
-	logger, loggerErr := zap.NewProduction()
-	if loggerErr != nil {
-		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", loggerErr)
-		return 1
-	}
+	logger := logging.NewConsoleLogger()
 	defer func() {
 		_ = logger.Sync()
 	}()
@@ -97,12 +99,12 @@ func Execute(ctx context.Context, arguments []string) int {
 	configurationManager.SetDefault(configKeyServeTLSKeyPath, "")
 	configurationManager.SetDefault(configKeyServeNoMarkdown, false)
 	configurationManager.SetDefault(configKeyServeHTTPS, false)
-	configurationManager.SetDefault(configKeyServeLoggingType, defaultLoggingType)
+	configurationManager.SetDefault(configKeyServeLoggingType, logging.TypeConsole)
 	configurationManager.SetDefault(configKeyHTTPSCertificateDir, filepath.Join(applicationConfigDir, certificates.DefaultCertificateDirectoryName))
 	configurationManager.SetDefault(configKeyHTTPSHosts, []string{"localhost", "127.0.0.1", "::1"})
 	configurationManager.SetDefault(configKeyHTTPSPort, defaultHTTPSServePort)
 
-	resources := applicationResources{
+	resources := &applicationResources{
 		configurationManager: configurationManager,
 		logger:               logger,
 		defaultConfigDirPath: applicationConfigDir,

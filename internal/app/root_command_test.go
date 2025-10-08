@@ -9,7 +9,7 @@ import (
 
 func TestNewRootCommandProvidesHTTPSFlagOnce(t *testing.T) {
 	configurationManager := viper.New()
-	resources := applicationResources{
+	resources := &applicationResources{
 		configurationManager: configurationManager,
 		logger:               zap.NewNop(),
 		defaultConfigDirPath: t.TempDir(),

@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+
+	"github.com/temirov/ghttp/internal/logging"
 )
 
 func TestPrepareServeConfigurationRejectsHTTPSWithTLSFiles(t *testing.T) {
@@ -21,7 +23,7 @@ func TestPrepareServeConfigurationRejectsHTTPSWithTLSFiles(t *testing.T) {
 	configurationManager.Set(configKeyServeTLSKeyPath, "key.pem")
 	configurationManager.Set(configKeyServeHTTPS, true)
 
-	resources := applicationResources{
+	resources := &applicationResources{
 		configurationManager: configurationManager,
 		logger:               zap.NewNop(),
 		defaultConfigDirPath: temporaryDirectory,
@@ -47,9 +49,9 @@ func TestPrepareServeConfigurationNoMarkdownFlagDisablesRendering(t *testing.T) 
 	configurationManager.Set(configKeyServeProtocol, "HTTP/1.1")
 	configurationManager.Set(configKeyServePort, "8000")
 	configurationManager.Set(configKeyServeNoMarkdown, true)
-	configurationManager.Set(configKeyServeLoggingType, "console")
+	configurationManager.Set(configKeyServeLoggingType, logging.TypeConsole)
 
-	resources := applicationResources{
+	resources := &applicationResources{
 		configurationManager: configurationManager,
 		logger:               zap.NewNop(),
 		defaultConfigDirPath: temporaryDirectory,
@@ -71,7 +73,7 @@ func TestPrepareServeConfigurationNoMarkdownFlagDisablesRendering(t *testing.T) 
 	if serveConfiguration.EnableMarkdown {
 		t.Fatalf("expected markdown rendering to be disabled")
 	}
-	if serveConfiguration.LoggingType != loggingTypeConsole {
+	if serveConfiguration.LoggingType != logging.TypeConsole {
 		t.Fatalf("expected logging type console, got %s", serveConfiguration.LoggingType)
 	}
 }
@@ -85,7 +87,7 @@ func TestPrepareServeConfigurationRejectsInvalidLoggingType(t *testing.T) {
 	configurationManager.Set(configKeyServePort, "8000")
 	configurationManager.Set(configKeyServeLoggingType, "xml")
 
-	resources := applicationResources{
+	resources := &applicationResources{
 		configurationManager: configurationManager,
 		logger:               zap.NewNop(),
 		defaultConfigDirPath: temporaryDirectory,

@@ -23,6 +23,7 @@ After installation the `ghttp` binary is placed in `$GOBIN` (or `$GOPATH/bin`). 
 | Provision and trust the development root CA | `ghttp https setup` | Generates `~/.config/ghttp/certs/ca.pem` and installs it into the OS trust store (may require elevated privileges). |
 | Serve HTTPS with self-signed certificates | `ghttp --https 8443` | Installs the development CA, serves HTTPS, and removes credentials on exit. |
 | Disable Markdown rendering | `ghttp --no-md` | Serves raw Markdown assets without HTML conversion. |
+| Switch logging format | `ghttp --logging-type JSON` | Emits structured JSON logs instead of the default console view. |
 | Remove the development certificates | `ghttp https uninstall` | Deletes local key material and removes the CA from the OS trust store. |
 
 ### Key capabilities

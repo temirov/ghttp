@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func newRootCommand(resources applicationResources) *cobra.Command {
+func newRootCommand(resources *applicationResources) *cobra.Command {
 	rootCommand := &cobra.Command{
 		Use:           fmt.Sprintf("%s [port]", defaultApplicationName),
 		Short:         "Serve local directories over HTTP or HTTPS",
