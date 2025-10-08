@@ -18,4 +18,3 @@ Leave Features, BugFixes, Improvements, Maintenance sections empty when all fixe
 
 ## Maintenance
 
-

@@ -32,6 +32,7 @@ type ServeConfiguration struct {
 	TLSPrivateKeyPath       string
 	DisableDirectoryListing bool
 	EnableDynamicHTTPS      bool
+	EnableMarkdown          bool
 }
 
 func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey string, allowTLSFiles bool) error {
@@ -77,6 +78,7 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 
 	tlsCertificatePath := strings.TrimSpace(configurationManager.GetString(configKeyServeTLSCertificatePath))
 	tlsKeyPath := strings.TrimSpace(configurationManager.GetString(configKeyServeTLSKeyPath))
+	markdownDisabled := configurationManager.GetBool(configKeyServeNoMarkdown)
 	enableDynamicHTTPS := configurationManager.GetBool(configKeyServeHTTPS)
 	if !allowTLSFiles {
 		enableDynamicHTTPS = false
@@ -113,6 +115,7 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 		TLSPrivateKeyPath:       tlsKeyPath,
 		DisableDirectoryListing: disableDirectoryListing,
 		EnableDynamicHTTPS:      enableDynamicHTTPS,
+		EnableMarkdown:          !markdownDisabled,
 	}
 
 	cmd.SetContext(context.WithValue(cmd.Context(), contextKeyServeConfiguration, serveConfiguration))
@@ -142,6 +145,7 @@ func runServe(cmd *cobra.Command) error {
 		DirectoryPath:           serveConfiguration.DirectoryPath,
 		ProtocolVersion:         serveConfiguration.ProtocolVersion,
 		DisableDirectoryListing: serveConfiguration.DisableDirectoryListing,
+		EnableMarkdown:          serveConfiguration.EnableMarkdown,
 	}
 	if serveConfiguration.TLSCertificatePath != "" {
 		fileServerConfiguration.TLS = &server.TLSConfiguration{

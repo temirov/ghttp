@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -16,30 +15,31 @@ import (
 )
 
 const (
-	defaultLogTimeLayout        = "2006-01-02 15:04:05"
-	serverHeaderName            = "Server"
-	serverHeaderValue           = "ghttpd"
-	connectionHeaderName        = "Connection"
-	connectionCloseValue        = "close"
-	httpProtocolVersionOneZero  = "HTTP/1.0"
-	logFieldDirectory           = "directory"
-	logFieldProtocol            = "protocol"
-	logFieldURL                 = "url"
-	logFieldMethod              = "method"
-	logFieldPath                = "path"
-	logFieldRemote              = "remote"
-	logFieldDuration            = "duration"
-	logFieldStatus              = "status"
-	logFieldTimestamp           = "timestamp"
-	logMessageServingHTTP       = "serving http"
-	logMessageServingHTTPS      = "serving https"
-	logMessageShutdownInitiated = "shutdown initiated"
-	logMessageShutdownCompleted = "shutdown completed"
-	logMessageShutdownFailed    = "shutdown failed"
-	logMessageServerError       = "server error"
-	logMessageRequestStarted    = "request started"
-	logMessageRequestCompleted  = "request completed"
-	shutdownGracePeriod         = 3 * time.Second
+	defaultLogTimeLayout                 = "2006-01-02 15:04:05"
+	serverHeaderName                     = "Server"
+	serverHeaderValue                    = "ghttpd"
+	connectionHeaderName                 = "Connection"
+	connectionCloseValue                 = "close"
+	httpProtocolVersionOneZero           = "HTTP/1.0"
+	errorMessageDirectoryListingDisabled = "Directory listing disabled"
+	logFieldDirectory                    = "directory"
+	logFieldProtocol                     = "protocol"
+	logFieldURL                          = "url"
+	logFieldMethod                       = "method"
+	logFieldPath                         = "path"
+	logFieldRemote                       = "remote"
+	logFieldDuration                     = "duration"
+	logFieldStatus                       = "status"
+	logFieldTimestamp                    = "timestamp"
+	logMessageServingHTTP                = "serving http"
+	logMessageServingHTTPS               = "serving https"
+	logMessageShutdownInitiated          = "shutdown initiated"
+	logMessageShutdownCompleted          = "shutdown completed"
+	logMessageShutdownFailed             = "shutdown failed"
+	logMessageServerError                = "server error"
+	logMessageRequestStarted             = "request started"
+	logMessageRequestCompleted           = "request completed"
+	shutdownGracePeriod                  = 3 * time.Second
 )
 
 // TLSConfiguration describes transport layer security configuration.
@@ -56,6 +56,7 @@ type FileServerConfiguration struct {
 	DirectoryPath           string
 	ProtocolVersion         string
 	DisableDirectoryListing bool
+	EnableMarkdown          bool
 	TLS                     *TLSConfiguration
 }
 
@@ -136,15 +137,10 @@ func (fileServer FileServer) Serve(ctx context.Context, configuration FileServer
 func (fileServer FileServer) buildFileHandler(configuration FileServerConfiguration) http.Handler {
 	fileSystem := http.Dir(configuration.DirectoryPath)
 	baseHandler := http.FileServer(fileSystem)
-	if configuration.DisableDirectoryListing {
-		baseHandler = http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-			if strings.HasSuffix(request.URL.Path, "/") {
-				http.Error(responseWriter, "Directory listing disabled", http.StatusForbidden)
-				return
-			}
-			fileServer := http.FileServer(fileSystem)
-			fileServer.ServeHTTP(responseWriter, request)
-		})
+	if configuration.EnableMarkdown {
+		baseHandler = newMarkdownHandler(baseHandler, fileSystem, configuration.DisableDirectoryListing)
+	} else if configuration.DisableDirectoryListing {
+		baseHandler = newDirectoryGuardHandler(baseHandler, fileSystem)
 	}
 	return baseHandler
 }
