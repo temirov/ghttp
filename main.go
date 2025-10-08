@@ -18,6 +18,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/temirov/ghhtp/internal/serverdetails"
 )
 
 const (
@@ -137,6 +139,8 @@ func main() {
 	})
 
 	listenAddress := net.JoinHostPort(bindAddressFlag, portString)
+	servingAddressFormatter := serverdetails.NewServingAddressFormatter()
+	displayAddress := servingAddressFormatter.FormatHostAndPortForLogging(bindAddressFlag, portString)
 
 	httpServer := &http.Server{
 		Addr:              listenAddress,
@@ -155,9 +159,9 @@ func main() {
 	log.SetFlags(0)
 	nowString := time.Now().Format(logTimeLayout)
 	if tlsCertificatePathFlag == "" {
-		log.Printf(logMessageServingHttp, nowString, absoluteDirectoryPath, listenAddress, normalizedProtocol)
+		log.Printf(logMessageServingHttp, nowString, absoluteDirectoryPath, displayAddress, normalizedProtocol)
 	} else {
-		log.Printf(logMessageServingHttps, nowString, absoluteDirectoryPath, listenAddress, normalizedProtocol)
+		log.Printf(logMessageServingHttps, nowString, absoluteDirectoryPath, displayAddress, normalizedProtocol)
 	}
 
 	terminationSignals := make(chan os.Signal, 1)
