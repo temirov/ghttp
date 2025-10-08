@@ -19,7 +19,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/temirov/ghhtp/internal/serverdetails"
+	"github.com/temirov/ghttp/internal/serverdetails"
 )
 
 const (
