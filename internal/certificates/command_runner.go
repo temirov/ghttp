@@ -5,11 +5,13 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"runtime"
 )
 
 // CommandRunner executes system commands.
 type CommandRunner interface {
 	Run(ctx context.Context, executable string, arguments []string) error
+	RunWithPrivileges(ctx context.Context, executable string, arguments []string) error
 }
 
 // ExecutableRunner executes commands using the local operating system.
@@ -30,4 +32,15 @@ func (executableRunner ExecutableRunner) Run(ctx context.Context, executable str
 		return fmt.Errorf("execute %s: %w: %s", executable, err, stderrBuffer.String())
 	}
 	return nil
+}
+
+// RunWithPrivileges executes the command with elevated privileges when supported.
+func (executableRunner ExecutableRunner) RunWithPrivileges(ctx context.Context, executable string, arguments []string) error {
+	switch runtime.GOOS {
+	case "darwin", "linux":
+		privilegedArguments := append([]string{executable}, arguments...)
+		return executableRunner.Run(ctx, "sudo", privilegedArguments)
+	default:
+		return fmt.Errorf("privileged execution not supported on %s", runtime.GOOS)
+	}
 }

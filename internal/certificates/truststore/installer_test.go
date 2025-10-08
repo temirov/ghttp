@@ -13,6 +13,7 @@ import (
 type executedCommand struct {
 	executable string
 	arguments  []string
+	privileged bool
 }
 
 type recordingCommandRunner struct {
@@ -25,7 +26,17 @@ func newRecordingCommandRunner(errors []error) *recordingCommandRunner {
 }
 
 func (runner *recordingCommandRunner) Run(ctx context.Context, executable string, arguments []string) error {
-	runner.executed = append(runner.executed, executedCommand{executable: executable, arguments: append([]string{}, arguments...)})
+	runner.executed = append(runner.executed, executedCommand{executable: executable, arguments: append([]string{}, arguments...), privileged: false})
+	if len(runner.errors) == 0 {
+		return nil
+	}
+	nextError := runner.errors[0]
+	runner.errors = runner.errors[1:]
+	return nextError
+}
+
+func (runner *recordingCommandRunner) RunWithPrivileges(ctx context.Context, executable string, arguments []string) error {
+	runner.executed = append(runner.executed, executedCommand{executable: executable, arguments: append([]string{}, arguments...), privileged: true})
 	if len(runner.errors) == 0 {
 		return nil
 	}
@@ -65,6 +76,9 @@ func TestInstallerFactories(t *testing.T) {
 				testingT.Helper()
 				if len(commandRunner.executed) != 2 {
 					testingT.Fatalf("expected two commands, got %d", len(commandRunner.executed))
+				}
+				if !commandRunner.executed[0].privileged || !commandRunner.executed[1].privileged {
+					testingT.Fatalf("expected privileged execution for macos commands")
 				}
 				if commandRunner.executed[0].executable != commandNameSecurity {
 					testingT.Fatalf("expected security command, got %s", commandRunner.executed[0].executable)
@@ -115,22 +129,24 @@ func TestInstallerFactories(t *testing.T) {
 			},
 			validateAfterInstall: func(testingT *testing.T, commandRunner *recordingCommandRunner, configuration Configuration, destinationPath string) {
 				testingT.Helper()
-				data, err := os.ReadFile(destinationPath)
-				if err != nil {
-					testingT.Fatalf("read destination certificate: %v", err)
+				if len(commandRunner.executed) < 2 {
+					testingT.Fatalf("expected privileged commands for linux install")
 				}
-				if string(data) != "certificate-data" {
-					testingT.Fatalf("unexpected certificate data %s", string(data))
+				if commandRunner.executed[0].executable != commandNameInstall || !commandRunner.executed[0].privileged {
+					testingT.Fatalf("expected install command with privileges, got %v", commandRunner.executed[0])
 				}
 			},
 			validateAfterUninstall: func(testingT *testing.T, commandRunner *recordingCommandRunner, configuration Configuration, destinationPath string) {
 				testingT.Helper()
-				if len(commandRunner.executed) < 2 {
-					testingT.Fatalf("expected trust store commands, got %d", len(commandRunner.executed))
+				if len(commandRunner.executed) == 0 {
+					testingT.Fatalf("expected commands during uninstall")
 				}
-				_, err := os.Stat(destinationPath)
-				if err == nil {
-					testingT.Fatalf("expected destination certificate to be removed during uninstall")
+				lastIndex := len(commandRunner.executed) - 1
+				if !commandRunner.executed[0].privileged {
+					testingT.Fatalf("expected privileged uninstall commands")
+				}
+				if commandRunner.executed[lastIndex].executable != commandNameUpdateCaCertificates {
+					testingT.Fatalf("expected final update-ca-certificates command, got %s", commandRunner.executed[lastIndex].executable)
 				}
 			},
 		},

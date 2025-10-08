@@ -15,6 +15,8 @@ const (
 	commandNameCertutil             = "certutil"
 	commandNameUpdateCaCertificates = "update-ca-certificates"
 	commandNameTrust                = "trust"
+	commandNameInstall              = "install"
+	commandNameRm                   = "rm"
 )
 
 // Installer provisions and removes certificates from operating system trust stores.
@@ -74,7 +76,7 @@ func (installer macOSInstaller) Install(ctx context.Context, certificatePath str
 		return errors.New("certificate path is required")
 	}
 	arguments := []string{"add-trusted-cert", "-d", "-r", "trustRoot", "-k", installer.configuration.MacOSKeychainPath, certificatePath}
-	err := installer.commandRunner.Run(ctx, commandNameSecurity, arguments)
+	err := installer.commandRunner.RunWithPrivileges(ctx, commandNameSecurity, arguments)
 	if err != nil {
 		return fmt.Errorf("install certificate in macos keychain: %w", err)
 	}
@@ -83,7 +85,7 @@ func (installer macOSInstaller) Install(ctx context.Context, certificatePath str
 
 func (installer macOSInstaller) Uninstall(ctx context.Context) error {
 	arguments := []string{"delete-certificate", "-c", installer.configuration.CertificateCommonName, installer.configuration.MacOSKeychainPath}
-	err := installer.commandRunner.Run(ctx, commandNameSecurity, arguments)
+	err := installer.commandRunner.RunWithPrivileges(ctx, commandNameSecurity, arguments)
 	if err != nil {
 		return fmt.Errorf("remove certificate from macos keychain: %w", err)
 	}
@@ -114,17 +116,14 @@ func (installer linuxInstaller) Install(ctx context.Context, certificatePath str
 	if certificatePath == "" {
 		return errors.New("certificate path is required")
 	}
-	certificateBytes, readErr := installer.fileSystem.ReadFile(certificatePath)
-	if readErr != nil {
-		return fmt.Errorf("read certificate for linux install: %w", readErr)
+	installArgs := []string{"-D", "-m", fmt.Sprintf("%#o", installer.configuration.LinuxCertificateFilePermissions), certificatePath, installer.configuration.LinuxCertificateDestinationPath}
+	installErr := installer.commandRunner.RunWithPrivileges(ctx, commandNameInstall, installArgs)
+	if installErr != nil {
+		return fmt.Errorf("install linux trust store certificate: %w", installErr)
 	}
-	writeErr := installer.fileSystem.WriteFile(installer.configuration.LinuxCertificateDestinationPath, certificateBytes, installer.configuration.LinuxCertificateFilePermissions)
-	if writeErr != nil {
-		return fmt.Errorf("write linux trust store certificate: %w", writeErr)
-	}
-	err := installer.commandRunner.Run(ctx, commandNameUpdateCaCertificates, []string{})
+	err := installer.commandRunner.RunWithPrivileges(ctx, commandNameUpdateCaCertificates, []string{})
 	if err != nil {
-		trustErr := installer.commandRunner.Run(ctx, commandNameTrust, []string{"anchor", installer.configuration.LinuxCertificateDestinationPath})
+		trustErr := installer.commandRunner.RunWithPrivileges(ctx, commandNameTrust, []string{"anchor", installer.configuration.LinuxCertificateDestinationPath})
 		if trustErr != nil {
 			return fmt.Errorf("update linux trust store: %w", errors.Join(err, trustErr))
 		}
@@ -133,13 +132,13 @@ func (installer linuxInstaller) Install(ctx context.Context, certificatePath str
 }
 
 func (installer linuxInstaller) Uninstall(ctx context.Context) error {
-	removeErr := installer.fileSystem.Remove(installer.configuration.LinuxCertificateDestinationPath)
+	removeErr := installer.commandRunner.RunWithPrivileges(ctx, commandNameRm, []string{"-f", installer.configuration.LinuxCertificateDestinationPath})
 	if removeErr != nil {
 		return fmt.Errorf("remove linux trust store certificate: %w", removeErr)
 	}
-	err := installer.commandRunner.Run(ctx, commandNameUpdateCaCertificates, []string{})
+	err := installer.commandRunner.RunWithPrivileges(ctx, commandNameUpdateCaCertificates, []string{})
 	if err != nil {
-		trustErr := installer.commandRunner.Run(ctx, commandNameTrust, []string{"anchor", "--remove", installer.configuration.LinuxCertificateDestinationPath})
+		trustErr := installer.commandRunner.RunWithPrivileges(ctx, commandNameTrust, []string{"anchor", "--remove", installer.configuration.LinuxCertificateDestinationPath})
 		if trustErr != nil {
 			return fmt.Errorf("update linux trust store removal: %w", errors.Join(err, trustErr))
 		}
