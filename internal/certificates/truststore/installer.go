@@ -32,6 +32,7 @@ type Configuration struct {
 	LinuxCertificateDestinationPath string
 	LinuxCertificateFilePermissions fs.FileMode
 	WindowsCertificateStoreName     string
+	FirefoxProfileDirectories       []string
 }
 
 type installerFactory func(commandRunner certificates.CommandRunner, fileSystem certificates.FileSystem, configuration Configuration) (Installer, error)
@@ -53,10 +54,11 @@ func NewInstaller(commandRunner certificates.CommandRunner, fileSystem certifica
 
 type macOSInstaller struct {
 	commandRunner certificates.CommandRunner
+	fileSystem    certificates.FileSystem
 	configuration Configuration
 }
 
-func newMacOSInstaller(commandRunner certificates.CommandRunner, _ certificates.FileSystem, configuration Configuration) (Installer, error) {
+func newMacOSInstaller(commandRunner certificates.CommandRunner, fileSystem certificates.FileSystem, configuration Configuration) (Installer, error) {
 	if configuration.CertificateCommonName == "" {
 		return nil, errors.New("macos installer requires certificate common name")
 	}
@@ -67,6 +69,7 @@ func newMacOSInstaller(commandRunner certificates.CommandRunner, _ certificates.
 	configuration.MacOSKeychainPath = keychainPath
 	return macOSInstaller{
 		commandRunner: commandRunner,
+		fileSystem:    fileSystem,
 		configuration: configuration,
 	}, nil
 }
@@ -80,6 +83,10 @@ func (installer macOSInstaller) Install(ctx context.Context, certificatePath str
 	if err != nil {
 		return fmt.Errorf("install certificate in macos keychain: %w", err)
 	}
+	firefoxErr := integrateFirefoxCertificates(ctx, installer.commandRunner, installer.fileSystem, installer.configuration, certificatePath)
+	if firefoxErr != nil {
+		return fmt.Errorf("configure firefox trust stores: %w", firefoxErr)
+	}
 	return nil
 }
 
@@ -88,6 +95,10 @@ func (installer macOSInstaller) Uninstall(ctx context.Context) error {
 	err := installer.commandRunner.RunWithPrivileges(ctx, commandNameSecurity, arguments)
 	if err != nil {
 		return fmt.Errorf("remove certificate from macos keychain: %w", err)
+	}
+	firefoxErr := removeFirefoxCertificates(ctx, installer.commandRunner, installer.fileSystem, installer.configuration)
+	if firefoxErr != nil {
+		return fmt.Errorf("remove firefox trust stores: %w", firefoxErr)
 	}
 	return nil
 }
@@ -116,6 +127,13 @@ func (installer linuxInstaller) Install(ctx context.Context, certificatePath str
 	if certificatePath == "" {
 		return errors.New("certificate path is required")
 	}
+	exists, existsErr := installer.fileSystem.FileExists(certificatePath)
+	if existsErr != nil {
+		return fmt.Errorf("check certificate path: %w", existsErr)
+	}
+	if !exists {
+		return fmt.Errorf("certificate path does not exist: %s", certificatePath)
+	}
 	installArgs := []string{"-D", "-m", fmt.Sprintf("%#o", installer.configuration.LinuxCertificateFilePermissions), certificatePath, installer.configuration.LinuxCertificateDestinationPath}
 	installErr := installer.commandRunner.RunWithPrivileges(ctx, commandNameInstall, installArgs)
 	if installErr != nil {
@@ -127,6 +145,10 @@ func (installer linuxInstaller) Install(ctx context.Context, certificatePath str
 		if trustErr != nil {
 			return fmt.Errorf("update linux trust store: %w", errors.Join(err, trustErr))
 		}
+	}
+	firefoxErr := integrateFirefoxCertificates(ctx, installer.commandRunner, installer.fileSystem, installer.configuration, certificatePath)
+	if firefoxErr != nil {
+		return fmt.Errorf("configure firefox trust stores: %w", firefoxErr)
 	}
 	return nil
 }
@@ -143,15 +165,20 @@ func (installer linuxInstaller) Uninstall(ctx context.Context) error {
 			return fmt.Errorf("update linux trust store removal: %w", errors.Join(err, trustErr))
 		}
 	}
+	firefoxErr := removeFirefoxCertificates(ctx, installer.commandRunner, installer.fileSystem, installer.configuration)
+	if firefoxErr != nil {
+		return fmt.Errorf("remove firefox trust stores: %w", firefoxErr)
+	}
 	return nil
 }
 
 type windowsInstaller struct {
 	commandRunner certificates.CommandRunner
+	fileSystem    certificates.FileSystem
 	configuration Configuration
 }
 
-func newWindowsInstaller(commandRunner certificates.CommandRunner, _ certificates.FileSystem, configuration Configuration) (Installer, error) {
+func newWindowsInstaller(commandRunner certificates.CommandRunner, fileSystem certificates.FileSystem, configuration Configuration) (Installer, error) {
 	storeName := configuration.WindowsCertificateStoreName
 	if storeName == "" {
 		storeName = "Root"
@@ -162,6 +189,7 @@ func newWindowsInstaller(commandRunner certificates.CommandRunner, _ certificate
 	configuration.WindowsCertificateStoreName = storeName
 	return windowsInstaller{
 		commandRunner: commandRunner,
+		fileSystem:    fileSystem,
 		configuration: configuration,
 	}, nil
 }
@@ -175,6 +203,10 @@ func (installer windowsInstaller) Install(ctx context.Context, certificatePath s
 	if err != nil {
 		return fmt.Errorf("install certificate in windows store: %w", err)
 	}
+	firefoxErr := integrateFirefoxCertificates(ctx, installer.commandRunner, installer.fileSystem, installer.configuration, certificatePath)
+	if firefoxErr != nil {
+		return fmt.Errorf("configure firefox trust stores: %w", firefoxErr)
+	}
 	return nil
 }
 
@@ -183,6 +215,10 @@ func (installer windowsInstaller) Uninstall(ctx context.Context) error {
 	err := installer.commandRunner.Run(ctx, commandNameCertutil, arguments)
 	if err != nil {
 		return fmt.Errorf("remove certificate from windows store: %w", err)
+	}
+	firefoxErr := removeFirefoxCertificates(ctx, installer.commandRunner, installer.fileSystem, installer.configuration)
+	if firefoxErr != nil {
+		return fmt.Errorf("remove firefox trust stores: %w", firefoxErr)
 	}
 	return nil
 }

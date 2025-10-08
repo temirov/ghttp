@@ -2,9 +2,11 @@ package truststore
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/temirov/ghttp/internal/certificates"
@@ -69,7 +71,8 @@ func TestInstallerFactories(t *testing.T) {
 			name:       "macos installer runs security commands",
 			factoryKey: "darwin",
 			configuration: Configuration{
-				CertificateCommonName: certificates.DefaultCertificateAuthorityCommonName,
+				CertificateCommonName:     certificates.DefaultCertificateAuthorityCommonName,
+				FirefoxProfileDirectories: []string{filepath.Join(temporaryDirectory, "no-firefox")},
 			},
 			certificatePath: "/tmp/certificate.pem",
 			validateAfterUninstall: func(testingT *testing.T, commandRunner *recordingCommandRunner, configuration Configuration, destinationPath string) {
@@ -97,6 +100,7 @@ func TestInstallerFactories(t *testing.T) {
 			configuration: Configuration{
 				CertificateCommonName:       certificates.DefaultCertificateAuthorityCommonName,
 				WindowsCertificateStoreName: "Root",
+				FirefoxProfileDirectories:   []string{filepath.Join(temporaryDirectory, "no-firefox")},
 			},
 			certificatePath: "C:\\certificate.pem",
 			validateAfterUninstall: func(testingT *testing.T, commandRunner *recordingCommandRunner, configuration Configuration, destinationPath string) {
@@ -121,6 +125,7 @@ func TestInstallerFactories(t *testing.T) {
 			configuration: Configuration{
 				LinuxCertificateDestinationPath: linuxDestinationPath,
 				LinuxCertificateFilePermissions: 0o644,
+				FirefoxProfileDirectories:       []string{filepath.Join(temporaryDirectory, "no-firefox")},
 			},
 			certificatePath: linuxSourcePath,
 			destinationPath: linuxDestinationPath,
@@ -183,5 +188,45 @@ func TestInstallerFactories(t *testing.T) {
 				testCase.validateAfterUninstall(testingT, commandRunner, testCase.configuration, testCase.destinationPath)
 			}
 		})
+	}
+}
+
+func TestFirefoxIntegrationAddsUserPreferenceWhenCertutilMissing(t *testing.T) {
+	temporaryDirectory := t.TempDir()
+	profileDirectory := filepath.Join(temporaryDirectory, "profile.default")
+	mustMkdir(t, profileDirectory)
+	mustWriteFile(t, filepath.Join(profileDirectory, "cert9.db"), []byte(""))
+	certificatePath := filepath.Join(temporaryDirectory, "ca.pem")
+	mustWriteFile(t, certificatePath, []byte("certificate"))
+
+	commandRunner := newRecordingCommandRunner([]error{fmt.Errorf("certutil missing")})
+	configuration := Configuration{
+		CertificateCommonName:           certificates.DefaultCertificateAuthorityCommonName,
+		FirefoxProfileDirectories:       []string{temporaryDirectory},
+		LinuxCertificateDestinationPath: filepath.Join(temporaryDirectory, "installed_ca.crt"),
+	}
+	installErr := integrateFirefoxCertificates(context.Background(), commandRunner, certificates.NewOperatingSystemFileSystem(), configuration, certificatePath)
+	if installErr != nil {
+		t.Fatalf("integrate firefox certificates: %v", installErr)
+	}
+	userPreferencesPath := filepath.Join(profileDirectory, firefoxUserPreferenceFile)
+	preferencesContent, readErr := os.ReadFile(userPreferencesPath)
+	if readErr != nil {
+		t.Fatalf("read user.js: %v", readErr)
+	}
+	if !strings.Contains(string(preferencesContent), firefoxUserPreferenceLine) {
+		t.Fatalf("expected enterprise roots preference in user.js, got %s", string(preferencesContent))
+	}
+}
+
+func mustMkdir(t *testing.T, path string) {
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", path, err)
+	}
+}
+
+func mustWriteFile(t *testing.T, path string, content []byte) {
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatalf("write file %s: %v", path, err)
 	}
 }

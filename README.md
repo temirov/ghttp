@@ -30,8 +30,17 @@ After installation the `ghttp` binary is placed in `$GOBIN` (or `$GOPATH/bin`). 
 * Provision a development certificate authority with `ghttp --https` (or `ghttp https setup` for manual control), storing it at `~/.config/ghttp/certs` and installing it into macOS, Linux, or Windows trust stores using native tooling.
 * Issue SAN-aware leaf certificates on demand whenever HTTPS is enabled, covering `localhost`, `127.0.0.1`, `::1`, and additional hosts supplied via repeated `--host` flags or Viper configuration.
 * Render Markdown files (`*.md`) to HTML automatically, treat `README.md` as a directory landing page, and skip the feature entirely with `--no-md` or `serve.no_markdown: true` in configuration.
+* When Firefox is installed, automatically configure its profiles to trust the generated certificates so browser warnings disappear on the next restart.
 * Suppress automatic directory listings by exporting `GHTTPD_DISABLE_DIR_INDEX=1`; the handler returns HTTP 403 for directory roots.
 * Configure every flag via `~/.config/ghttp/config.yaml` or environment variables prefixed with `GHTTP_` (for example, `GHTTP_SERVE_DIRECTORY=/srv/www`).
+
+### Browser trust behaviour
+| Browser | Trust source | Restart needed? | Notes |
+| --- | --- | --- | --- |
+| Safari (macOS) | System keychain | No | macOS keychain updates apply immediately to Safari and other WebKit clients. |
+| Chrome / Edge | OS certificate store | No | Chromium-based browsers rely on the OS trust store and accept the CA on the next handshake. |
+| Firefox | Firefox NSS store or enterprise roots | Yes | Profiles are updated automatically: if `certutil` is available the CA is imported, otherwise `security.enterprise_roots.enabled` is set via `user.js`. Restart Firefox to apply the change. |
+| Other browsers | OS certificate store | No | Most modern browsers reuse the system trust store; no manual action required. |
 
 ## File Serving Behavior
 The server delegates file handling to the Go standard library's `http.FileServer`,
