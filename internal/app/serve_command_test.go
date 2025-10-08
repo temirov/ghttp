@@ -47,6 +47,7 @@ func TestPrepareServeConfigurationNoMarkdownFlagDisablesRendering(t *testing.T) 
 	configurationManager.Set(configKeyServeProtocol, "HTTP/1.1")
 	configurationManager.Set(configKeyServePort, "8000")
 	configurationManager.Set(configKeyServeNoMarkdown, true)
+	configurationManager.Set(configKeyServeLoggingType, "console")
 
 	resources := applicationResources{
 		configurationManager: configurationManager,
@@ -69,5 +70,35 @@ func TestPrepareServeConfigurationNoMarkdownFlagDisablesRendering(t *testing.T) 
 	}
 	if serveConfiguration.EnableMarkdown {
 		t.Fatalf("expected markdown rendering to be disabled")
+	}
+	if serveConfiguration.LoggingType != loggingTypeConsole {
+		t.Fatalf("expected logging type console, got %s", serveConfiguration.LoggingType)
+	}
+}
+
+func TestPrepareServeConfigurationRejectsInvalidLoggingType(t *testing.T) {
+	temporaryDirectory := t.TempDir()
+	configurationManager := viper.New()
+	configurationManager.Set(configKeyServeBindAddress, "")
+	configurationManager.Set(configKeyServeDirectory, temporaryDirectory)
+	configurationManager.Set(configKeyServeProtocol, "HTTP/1.1")
+	configurationManager.Set(configKeyServePort, "8000")
+	configurationManager.Set(configKeyServeLoggingType, "xml")
+
+	resources := applicationResources{
+		configurationManager: configurationManager,
+		logger:               zap.NewNop(),
+		defaultConfigDirPath: temporaryDirectory,
+	}
+
+	command := &cobra.Command{}
+	command.SetContext(context.WithValue(context.Background(), contextKeyApplicationResources, resources))
+
+	err := prepareServeConfiguration(command, nil, configKeyServePort, true)
+	if err == nil {
+		t.Fatalf("expected error for invalid logging type")
+	}
+	if !strings.Contains(err.Error(), "unsupported logging type") {
+		t.Fatalf("unexpected error message: %s", err.Error())
 	}
 }

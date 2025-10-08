@@ -33,6 +33,7 @@ type ServeConfiguration struct {
 	DisableDirectoryListing bool
 	EnableDynamicHTTPS      bool
 	EnableMarkdown          bool
+	LoggingType             string
 }
 
 func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey string, allowTLSFiles bool) error {
@@ -80,6 +81,16 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 	tlsKeyPath := strings.TrimSpace(configurationManager.GetString(configKeyServeTLSKeyPath))
 	markdownDisabled := configurationManager.GetBool(configKeyServeNoMarkdown)
 	enableDynamicHTTPS := configurationManager.GetBool(configKeyServeHTTPS)
+	loggingTypeValue := strings.ToUpper(strings.TrimSpace(configurationManager.GetString(configKeyServeLoggingType)))
+	if loggingTypeValue == "" {
+		loggingTypeValue = defaultLoggingType
+	}
+	switch loggingTypeValue {
+	case loggingTypeConsole, loggingTypeJSON:
+		// valid
+	default:
+		return fmt.Errorf("unsupported logging type %s", loggingTypeValue)
+	}
 	if !allowTLSFiles {
 		enableDynamicHTTPS = false
 	}
@@ -116,6 +127,7 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 		DisableDirectoryListing: disableDirectoryListing,
 		EnableDynamicHTTPS:      enableDynamicHTTPS,
 		EnableMarkdown:          !markdownDisabled,
+		LoggingType:             loggingTypeValue,
 	}
 
 	cmd.SetContext(context.WithValue(cmd.Context(), contextKeyServeConfiguration, serveConfiguration))
@@ -146,6 +158,7 @@ func runServe(cmd *cobra.Command) error {
 		ProtocolVersion:         serveConfiguration.ProtocolVersion,
 		DisableDirectoryListing: serveConfiguration.DisableDirectoryListing,
 		EnableMarkdown:          serveConfiguration.EnableMarkdown,
+		LoggingType:             serveConfiguration.LoggingType,
 	}
 	if serveConfiguration.TLSCertificatePath != "" {
 		fileServerConfiguration.TLS = &server.TLSConfiguration{

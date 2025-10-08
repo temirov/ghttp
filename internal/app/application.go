@@ -27,6 +27,7 @@ const (
 	defaultConfigFileName  = "config"
 	defaultConfigFileType  = "yaml"
 	defaultApplicationName = "ghttp"
+	defaultLoggingType     = loggingTypeConsole
 
 	flagNameConfigFile         = "config"
 	flagNameBindAddress        = "bind"
@@ -36,6 +37,7 @@ const (
 	flagNameTLSKeyPath         = "tls-key"
 	flagNameNoMarkdown         = "no-md"
 	flagNameHTTPS              = "https"
+	flagNameLoggingType        = "logging-type"
 	flagNameCertificateDir     = "cert-dir"
 	flagNameHTTPSHosts         = "host"
 
@@ -47,9 +49,15 @@ const (
 	configKeyServeTLSKeyPath         = "serve.tls_private_key"
 	configKeyServeNoMarkdown         = "serve.no_markdown"
 	configKeyServeHTTPS              = "serve.https"
+	configKeyServeLoggingType        = "serve.logging_type"
 	configKeyHTTPSCertificateDir     = "https.certificate_directory"
 	configKeyHTTPSHosts              = "https.hosts"
 	configKeyHTTPSPort               = "https.port"
+)
+
+const (
+	loggingTypeConsole = "CONSOLE"
+	loggingTypeJSON    = "JSON"
 )
 
 type applicationResources struct {
@@ -89,6 +97,7 @@ func Execute(ctx context.Context, arguments []string) int {
 	configurationManager.SetDefault(configKeyServeTLSKeyPath, "")
 	configurationManager.SetDefault(configKeyServeNoMarkdown, false)
 	configurationManager.SetDefault(configKeyServeHTTPS, false)
+	configurationManager.SetDefault(configKeyServeLoggingType, defaultLoggingType)
 	configurationManager.SetDefault(configKeyHTTPSCertificateDir, filepath.Join(applicationConfigDir, certificates.DefaultCertificateDirectoryName))
 	configurationManager.SetDefault(configKeyHTTPSHosts, []string{"localhost", "127.0.0.1", "::1"})
 	configurationManager.SetDefault(configKeyHTTPSPort, defaultHTTPSServePort)

@@ -7,9 +7,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/temirov/ghttp/internal/serverdetails"
 )
@@ -22,6 +26,9 @@ const (
 	connectionCloseValue                 = "close"
 	httpProtocolVersionOneZero           = "HTTP/1.0"
 	errorMessageDirectoryListingDisabled = "Directory listing disabled"
+	loggingTypeConsole                   = "CONSOLE"
+	loggingTypeJSON                      = "JSON"
+	consoleRequestTimeLayout             = "02/Jan/2006 15:04:05"
 	logFieldDirectory                    = "directory"
 	logFieldProtocol                     = "protocol"
 	logFieldURL                          = "url"
@@ -57,6 +64,7 @@ type FileServerConfiguration struct {
 	ProtocolVersion         string
 	DisableDirectoryListing bool
 	EnableMarkdown          bool
+	LoggingType             string
 	TLS                     *TLSConfiguration
 }
 
@@ -77,7 +85,15 @@ func (fileServer FileServer) Serve(ctx context.Context, configuration FileServer
 	displayAddress := fileServer.servingAddressFormatter.FormatHostAndPortForLogging(configuration.BindAddress, configuration.Port)
 	fileHandler := fileServer.buildFileHandler(configuration)
 	wrappedHandler := fileServer.wrapWithHeaders(fileHandler, configuration.ProtocolVersion)
-	loggingHandler := fileServer.wrapWithLogging(wrappedHandler)
+	eventLogger := fileServer.logger
+	loggingType := configuration.LoggingType
+	if loggingType == "" {
+		loggingType = loggingTypeConsole
+	}
+	if loggingType == loggingTypeConsole {
+		eventLogger = newConsoleLogger()
+	}
+	loggingHandler := fileServer.wrapWithLogging(wrappedHandler, loggingType, eventLogger)
 
 	server := &http.Server{
 		Addr:              listeningAddress,
@@ -96,10 +112,15 @@ func (fileServer FileServer) Serve(ctx context.Context, configuration FileServer
 	}
 
 	currentTime := time.Now().Format(defaultLogTimeLayout)
-	if certificateConfigured {
-		fileServer.logger.Info(logMessageServingHTTPS, zap.String(logFieldDirectory, configuration.DirectoryPath), zap.String(logFieldProtocol, configuration.ProtocolVersion), zap.String(logFieldURL, fmt.Sprintf("https://%s", displayAddress)), zap.String(logFieldTimestamp, currentTime))
+	if loggingType == loggingTypeConsole {
+		startMessage := formatConsoleStartMessage(configuration, certificateConfigured, displayAddress)
+		eventLogger.Info(startMessage)
 	} else {
-		fileServer.logger.Info(logMessageServingHTTP, zap.String(logFieldDirectory, configuration.DirectoryPath), zap.String(logFieldProtocol, configuration.ProtocolVersion), zap.String(logFieldURL, fmt.Sprintf("http://%s", displayAddress)), zap.String(logFieldTimestamp, currentTime))
+		if certificateConfigured {
+			eventLogger.Info(logMessageServingHTTPS, zap.String(logFieldDirectory, configuration.DirectoryPath), zap.String(logFieldProtocol, configuration.ProtocolVersion), zap.String(logFieldURL, fmt.Sprintf("https://%s", displayAddress)), zap.String(logFieldTimestamp, currentTime))
+		} else {
+			eventLogger.Info(logMessageServingHTTP, zap.String(logFieldDirectory, configuration.DirectoryPath), zap.String(logFieldProtocol, configuration.ProtocolVersion), zap.String(logFieldURL, fmt.Sprintf("http://%s", displayAddress)), zap.String(logFieldTimestamp, currentTime))
+		}
 	}
 
 	serverErrors := make(chan error, 1)
@@ -115,19 +136,19 @@ func (fileServer FileServer) Serve(ctx context.Context, configuration FileServer
 
 	select {
 	case <-ctx.Done():
-		fileServer.logger.Info(logMessageShutdownInitiated)
+		eventLogger.Info(logMessageShutdownInitiated)
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGracePeriod)
 		defer cancel()
 		shutdownErr := server.Shutdown(shutdownCtx)
 		if shutdownErr != nil {
-			fileServer.logger.Error(logMessageShutdownFailed, zap.Error(shutdownErr))
+			eventLogger.Error(logMessageShutdownFailed, zap.Error(shutdownErr))
 			return fmt.Errorf("shutdown server: %w", shutdownErr)
 		}
-		fileServer.logger.Info(logMessageShutdownCompleted)
+		eventLogger.Info(logMessageShutdownCompleted)
 		return nil
 	case serveErr := <-serverErrors:
 		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			fileServer.logger.Error(logMessageServerError, zap.Error(serveErr))
+			eventLogger.Error(logMessageServerError, zap.Error(serveErr))
 			return fmt.Errorf("serve http: %w", serveErr)
 		}
 		return nil
@@ -155,15 +176,74 @@ func (fileServer FileServer) wrapWithHeaders(handler http.Handler, protocolVersi
 	})
 }
 
-func (fileServer FileServer) wrapWithLogging(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		recordedWriter := &statusRecorder{ResponseWriter: responseWriter, statusCode: http.StatusOK}
-		startTime := time.Now()
-		fileServer.logger.Info(logMessageRequestStarted, zap.String(logFieldMethod, request.Method), zap.String(logFieldPath, request.URL.Path), zap.String(logFieldProtocol, request.Proto), zap.String(logFieldRemote, request.RemoteAddr))
-		handler.ServeHTTP(recordedWriter, request)
-		duration := time.Since(startTime)
-		fileServer.logger.Info(logMessageRequestCompleted, zap.String(logFieldMethod, request.Method), zap.String(logFieldPath, request.URL.Path), zap.Int(logFieldStatus, recordedWriter.statusCode), zap.Duration(logFieldDuration, duration), zap.String(logFieldRemote, request.RemoteAddr))
-	})
+func (fileServer FileServer) wrapWithLogging(handler http.Handler, loggingType string, logger *zap.Logger) http.Handler {
+	switch loggingType {
+	case loggingTypeConsole:
+		return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+			recordedWriter := newStatusRecorder(responseWriter)
+			startTime := time.Now()
+			handler.ServeHTTP(recordedWriter, request)
+			message := formatConsoleRequestLog(request, recordedWriter.statusCode, recordedWriter.bytesWritten, startTime)
+			logger.Info(message)
+		})
+	default:
+		return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+			recordedWriter := newStatusRecorder(responseWriter)
+			startTime := time.Now()
+			logger.Info(logMessageRequestStarted, zap.String(logFieldMethod, request.Method), zap.String(logFieldPath, request.URL.Path), zap.String(logFieldProtocol, request.Proto), zap.String(logFieldRemote, request.RemoteAddr))
+			handler.ServeHTTP(recordedWriter, request)
+			duration := time.Since(startTime)
+			logger.Info(logMessageRequestCompleted, zap.String(logFieldMethod, request.Method), zap.String(logFieldPath, request.URL.Path), zap.Int(logFieldStatus, recordedWriter.statusCode), zap.Duration(logFieldDuration, duration), zap.String(logFieldRemote, request.RemoteAddr))
+		})
+	}
+}
+
+func newConsoleLogger() *zap.Logger {
+	encoderConfig := zapcore.EncoderConfig{
+		MessageKey:    "msg",
+		LevelKey:      "",
+		TimeKey:       "",
+		NameKey:       "",
+		CallerKey:     "",
+		FunctionKey:   "",
+		StacktraceKey: "",
+		LineEnding:    zapcore.DefaultLineEnding,
+	}
+	core := zapcore.NewCore(zapcore.NewConsoleEncoder(encoderConfig), zapcore.AddSync(os.Stdout), zapcore.InfoLevel)
+	return zap.New(core)
+}
+
+func formatConsoleStartMessage(configuration FileServerConfiguration, certificateConfigured bool, displayAddress string) string {
+	bindAddress := configuration.BindAddress
+	if strings.TrimSpace(bindAddress) == "" {
+		bindAddress = "0.0.0.0"
+	}
+	port := configuration.Port
+	scheme := "http"
+	schemeLabel := "HTTP"
+	if certificateConfigured {
+		scheme = "https"
+		schemeLabel = "HTTPS"
+	}
+	return fmt.Sprintf("Serving %s on %s port %s (%s://%s/) ...", schemeLabel, bindAddress, port, scheme, displayAddress)
+}
+
+func formatConsoleRequestLog(request *http.Request, statusCode int, bytesWritten int, startTime time.Time) string {
+	clientAddress := request.RemoteAddr
+	if host, _, err := net.SplitHostPort(clientAddress); err == nil {
+		clientAddress = host
+	}
+	timestamp := startTime.Format(consoleRequestTimeLayout)
+	requestTarget := request.URL.RequestURI()
+	if requestTarget == "" {
+		requestTarget = request.URL.Path
+	}
+	requestLine := fmt.Sprintf("%s %s %s", request.Method, requestTarget, request.Proto)
+	sizeField := "-"
+	if bytesWritten > 0 {
+		sizeField = strconv.Itoa(bytesWritten)
+	}
+	return fmt.Sprintf("%s - - [%s] \"%s\" %d %s", clientAddress, timestamp, requestLine, statusCode, sizeField)
 }
 
 func (fileServer FileServer) configureTLS(server *http.Server, configuration *TLSConfiguration) (bool, error) {
@@ -187,10 +267,22 @@ func (fileServer FileServer) configureTLS(server *http.Server, configuration *TL
 
 type statusRecorder struct {
 	http.ResponseWriter
-	statusCode int
+	statusCode   int
+	bytesWritten int
 }
 
 func (recorder *statusRecorder) WriteHeader(statusCode int) {
 	recorder.statusCode = statusCode
 	recorder.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (recorder *statusRecorder) Write(content []byte) (int, error) {
+	written, err := recorder.ResponseWriter.Write(content)
+	recorder.bytesWritten += written
+	return written, err
+}
+
+func newStatusRecorder(responseWriter http.ResponseWriter) *statusRecorder {
+	recorder := &statusRecorder{ResponseWriter: responseWriter, statusCode: http.StatusOK}
+	return recorder
 }
