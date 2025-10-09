@@ -28,6 +28,8 @@ func TestIntegrationFileServerReturnsFriendlyErrorWhenPortInUse(t *testing.T) {
 		ProtocolVersion:         "HTTP/1.1",
 		DisableDirectoryListing: false,
 		EnableMarkdown:          true,
+		BrowseDirectories:       false,
+		InitialFileRelativePath: "",
 		LoggingType:             "CONSOLE",
 	}
 

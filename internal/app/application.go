@@ -36,6 +36,7 @@ const (
 	flagNameTLSKeyPath         = "tls-key"
 	flagNameNoMarkdown         = "no-md"
 	flagNameHTTPS              = "https"
+	flagNameBrowse             = "browse"
 	flagNameLoggingType        = "logging-type"
 	flagNameCertificateDir     = "cert-dir"
 	flagNameHTTPSHosts         = "host"
@@ -47,6 +48,7 @@ const (
 	configKeyServeTLSCertificatePath = "serve.tls_certificate"
 	configKeyServeTLSKeyPath         = "serve.tls_private_key"
 	configKeyServeNoMarkdown         = "serve.no_markdown"
+	configKeyServeBrowse             = "serve.browse"
 	configKeyServeHTTPS              = "serve.https"
 	configKeyServeLoggingType        = "serve.logging_type"
 	configKeyHTTPSCertificateDir     = "https.certificate_directory"
@@ -116,6 +118,7 @@ func Execute(ctx context.Context, arguments []string) int {
 	configurationManager.SetDefault(configKeyServeTLSCertificatePath, "")
 	configurationManager.SetDefault(configKeyServeTLSKeyPath, "")
 	configurationManager.SetDefault(configKeyServeNoMarkdown, false)
+	configurationManager.SetDefault(configKeyServeBrowse, false)
 	configurationManager.SetDefault(configKeyServeHTTPS, false)
 	configurationManager.SetDefault(configKeyServeLoggingType, logging.TypeConsole)
 	configurationManager.SetDefault(configKeyHTTPSCertificateDir, filepath.Join(applicationConfigDir, certificates.DefaultCertificateDirectoryName))
