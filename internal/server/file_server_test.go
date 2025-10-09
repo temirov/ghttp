@@ -223,6 +223,34 @@ func TestIntegrationFileServerBrowseModeRendersMarkdownOnDirectRequest(t *testin
 	}
 }
 
+func TestIntegrationFileServerBrowseModeListsRootDirectory(t *testing.T) {
+	temporaryDirectory := t.TempDir()
+	writeFile(t, filepath.Join(temporaryDirectory, "index.html"), "<html><body>Index page</body></html>")
+	writeFile(t, filepath.Join(temporaryDirectory, "README.md"), "# Root\n")
+
+	handler := newTestFileServerHandler(temporaryDirectory, true, false, true, "")
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 status, got %d", recorder.Code)
+	}
+	bodyBytes, readErr := io.ReadAll(recorder.Result().Body)
+	if readErr != nil {
+		t.Fatalf("read body: %v", readErr)
+	}
+	responseBody := string(bodyBytes)
+	if !strings.Contains(responseBody, "index.html") {
+		t.Fatalf("expected index.html link in directory listing, body: %s", responseBody)
+	}
+	if strings.Contains(responseBody, "Index page") {
+		t.Fatalf("expected directory listing instead of index file content, body: %s", responseBody)
+	}
+}
+
 func TestIntegrationFileServerServesInitialHtmlFileAtRoot(t *testing.T) {
 	temporaryDirectory := t.TempDir()
 	writeFile(t, filepath.Join(temporaryDirectory, "cat.html"), "<html><body>Cat</body></html>")

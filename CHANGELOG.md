@@ -8,6 +8,7 @@
 
 ### Fixed
 - `--no-md` flag now serves Markdown files without HTML conversion and honors `index.html` before `README.md` when both exist.
+- `--browse` flag now forces directory listings even when default index files are present.
 
 ## v0.2.1 — 2025-10-10
 
