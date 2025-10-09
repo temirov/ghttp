@@ -25,6 +25,12 @@ const (
 	logMessageReceivedSignal                   = "received signal"
 )
 
+var allowedInitialServeFileExtensions = map[string]struct{}{
+	".html": {},
+	".htm":  {},
+	".md":   {},
+}
+
 type ServeConfiguration struct {
 	BindAddress             string
 	Port                    string
@@ -36,6 +42,7 @@ type ServeConfiguration struct {
 	EnableDynamicHTTPS      bool
 	EnableMarkdown          bool
 	BrowseDirectories       bool
+	InitialFileRelativePath string
 	LoggingType             string
 }
 
@@ -50,6 +57,25 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 	directoryPath := strings.TrimSpace(configurationManager.GetString(configKeyServeDirectory))
 	if directoryPath == "" {
 		directoryPath = "."
+	}
+
+	initialFileRelativePath := ""
+	portValue := strings.TrimSpace(configurationManager.GetString(portConfigKey))
+	if len(args) == 1 {
+		argumentValue := strings.TrimSpace(args[0])
+		if argumentValue != "" {
+			portCandidate, parseErr := strconv.Atoi(argumentValue)
+			if parseErr == nil && portCandidate > 0 && portCandidate <= 65535 {
+				portValue = argumentValue
+			} else {
+				resolvedDirectory, resolvedFile, resolveErr := resolveInitialServeFile(argumentValue)
+				if resolveErr != nil {
+					return resolveErr
+				}
+				directoryPath = resolvedDirectory
+				initialFileRelativePath = resolvedFile
+			}
+		}
 	}
 	absoluteDirectory, absoluteErr := filepath.Abs(directoryPath)
 	if absoluteErr != nil {
@@ -68,10 +94,6 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 		return fmt.Errorf("unsupported protocol %s", protocolValue)
 	}
 
-	portValue := strings.TrimSpace(configurationManager.GetString(portConfigKey))
-	if len(args) == 1 {
-		portValue = strings.TrimSpace(args[0])
-	}
 	if portValue == "" {
 		portValue = defaultServePort
 	}
@@ -129,6 +151,7 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 		EnableDynamicHTTPS:      enableDynamicHTTPS,
 		EnableMarkdown:          !markdownDisabled,
 		BrowseDirectories:       browseDirectories,
+		InitialFileRelativePath: initialFileRelativePath,
 		LoggingType:             loggingTypeValue,
 	}
 
@@ -165,6 +188,7 @@ func runServe(cmd *cobra.Command) error {
 		DisableDirectoryListing: serveConfiguration.DisableDirectoryListing,
 		EnableMarkdown:          serveConfiguration.EnableMarkdown,
 		BrowseDirectories:       serveConfiguration.BrowseDirectories,
+		InitialFileRelativePath: serveConfiguration.InitialFileRelativePath,
 		LoggingType:             serveConfiguration.LoggingType,
 	}
 	if serveConfiguration.TLSCertificatePath != "" {
@@ -205,6 +229,26 @@ func loadConfigurationFile(cmd *cobra.Command) error {
 		}
 	}
 	return nil
+}
+
+func resolveInitialServeFile(candidatePath string) (string, string, error) {
+	absolutePath, absoluteErr := filepath.Abs(candidatePath)
+	if absoluteErr != nil {
+		return "", "", fmt.Errorf("resolve initial file path: %w", absoluteErr)
+	}
+	fileInfo, statErr := os.Stat(absolutePath)
+	if statErr != nil {
+		return "", "", fmt.Errorf("stat initial file: %w", statErr)
+	}
+	if fileInfo.IsDir() {
+		return "", "", fmt.Errorf("initial file is a directory: %s", absolutePath)
+	}
+	extension := strings.ToLower(filepath.Ext(fileInfo.Name()))
+	if _, allowed := allowedInitialServeFileExtensions[extension]; !allowed {
+		return "", "", fmt.Errorf("unsupported initial file extension %s", extension)
+	}
+	directory := filepath.Dir(absolutePath)
+	return directory, fileInfo.Name(), nil
 }
 
 func getApplicationResources(cmd *cobra.Command) (*applicationResources, error) {

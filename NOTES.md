@@ -25,8 +25,6 @@ Leave Features, BugFixes, Improvements, Maintenance sections empty when all fixe
 
 ### Improvements
 
-- [ ] [GH-12] allow passing either html or md file to start serving it, e.g. `ghttp cat.html` shall have cat.html served on a default port
-
 ### BugFixes
 
 ### Maintenance

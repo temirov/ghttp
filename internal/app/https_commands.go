@@ -203,6 +203,8 @@ func executeHTTPSServe(cmd *cobra.Command, resources *applicationResources, serv
 		ProtocolVersion:         serveConfiguration.ProtocolVersion,
 		DisableDirectoryListing: serveConfiguration.DisableDirectoryListing,
 		EnableMarkdown:          serveConfiguration.EnableMarkdown,
+		BrowseDirectories:       serveConfiguration.BrowseDirectories,
+		InitialFileRelativePath: serveConfiguration.InitialFileRelativePath,
 		LoggingType:             serveConfiguration.LoggingType,
 		TLS: &server.TLSConfiguration{
 			LoadedCertificate: &tlsCertificate,

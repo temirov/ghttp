@@ -54,6 +54,7 @@ type FileServerConfiguration struct {
 	DisableDirectoryListing bool
 	EnableMarkdown          bool
 	BrowseDirectories       bool
+	InitialFileRelativePath string
 	LoggingType             string
 	TLS                     *TLSConfiguration
 }
@@ -181,6 +182,9 @@ func (fileServer FileServer) buildFileHandler(configuration FileServerConfigurat
 	}
 	if configuration.BrowseDirectories {
 		handler = newBrowseHandler(handler, fileSystem)
+	}
+	if configuration.InitialFileRelativePath != "" && !configuration.BrowseDirectories {
+		handler = newInitialFileHandler(handler, configuration.InitialFileRelativePath)
 	}
 	return handler
 }
