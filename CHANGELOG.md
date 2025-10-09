@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.2 — 2025-10-10
+
+### Added
+- `--browse` flag to force directory listings while still rendering markdown and HTML files when explicitly requested.
+- Positional argument support for serving a specific HTML or Markdown file directly (for example, `ghttp cat.html`).
+
+### Fixed
+- `--no-md` flag now serves Markdown files without HTML conversion and honors `index.html` before `README.md` when both exist.
+
 ## v0.2.1 — 2025-10-10
 
 ### Added
