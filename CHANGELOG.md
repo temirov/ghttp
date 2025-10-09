@@ -1,6 +1,14 @@
 # Changelog
 
-# Changelog
+## v0.2.1 — 2025-10-10
+
+### Added
+- Scaffolding for GitHub releases using GitHub actions
+- CI pipeline for GitHub
+- Makefile to abstract the CI logic from the commands
+
+### Changed
+- Tests refactored into unit tests and integration tests
 
 ## v0.2.0 — 2025-10-09
 
