@@ -13,6 +13,8 @@ import (
 	"github.com/temirov/ghttp/internal/markdown"
 )
 
+var directoryIndexCandidates = []string{"index.html", "index.htm"}
+
 type markdownHandler struct {
 	next                    http.Handler
 	fileSystem              http.FileSystem
@@ -56,6 +58,11 @@ func (handler markdownHandler) ServeHTTP(responseWriter http.ResponseWriter, req
 
 func (handler markdownHandler) serveDirectory(responseWriter http.ResponseWriter, request *http.Request) {
 	if !strings.HasSuffix(request.URL.Path, "/") {
+		handler.next.ServeHTTP(responseWriter, request)
+		return
+	}
+
+	if handler.directoryIndexExists(request.URL.Path) {
 		handler.next.ServeHTTP(responseWriter, request)
 		return
 	}
@@ -136,6 +143,27 @@ func (handler markdownHandler) selectMarkdownCandidate(directoryPath string) (st
 	}
 
 	return "", nil, nil
+}
+
+func (handler markdownHandler) directoryIndexExists(directoryPath string) bool {
+	for index := range directoryIndexCandidates {
+		candidateName := directoryIndexCandidates[index]
+		candidatePath := pathpkg.Join(directoryPath, candidateName)
+		fileHandle, openErr := handler.fileSystem.Open(candidatePath)
+		if openErr != nil {
+			continue
+		}
+		candidateInfo, statErr := fileHandle.Stat()
+		fileHandle.Close()
+		if statErr != nil {
+			continue
+		}
+		if candidateInfo.IsDir() {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func buildHTMLDocument(title string, body []byte) []byte {

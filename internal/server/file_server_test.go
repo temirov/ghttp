@@ -107,6 +107,63 @@ func TestIntegrationFileServerDisablesDirectoryListingWithoutMarkdown(t *testing
 	}
 }
 
+func TestIntegrationFileServerPrefersIndexHtmlOverReadme(t *testing.T) {
+	temporaryDirectory := t.TempDir()
+	sectionDirectory := filepath.Join(temporaryDirectory, "section")
+	mustMkDir(t, sectionDirectory)
+	writeFile(t, filepath.Join(sectionDirectory, "index.html"), "<html><body>Index page</body></html>")
+	writeFile(t, filepath.Join(sectionDirectory, "README.md"), "# Section\n")
+
+	handler := newTestFileServerHandler(temporaryDirectory, true, false)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/section/", nil)
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 status, got %d", recorder.Code)
+	}
+	bodyBytes, readErr := io.ReadAll(recorder.Result().Body)
+	if readErr != nil {
+		t.Fatalf("read body: %v", readErr)
+	}
+	responseBody := string(bodyBytes)
+	if !strings.Contains(responseBody, "Index page") {
+		t.Fatalf("expected index page content, body: %s", responseBody)
+	}
+	if strings.Contains(responseBody, "<h1>Section</h1>") {
+		t.Fatalf("expected markdown rendering to be skipped when index is present, body: %s", responseBody)
+	}
+}
+
+func TestIntegrationFileServerServesMarkdownVerbatimWhenRenderingDisabled(t *testing.T) {
+	temporaryDirectory := t.TempDir()
+	writeFile(t, filepath.Join(temporaryDirectory, "notes.md"), "# Notes\n\nContent.")
+
+	handler := newTestFileServerHandler(temporaryDirectory, false, false)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/notes.md", nil)
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 status, got %d", recorder.Code)
+	}
+	bodyBytes, readErr := io.ReadAll(recorder.Result().Body)
+	if readErr != nil {
+		t.Fatalf("read body: %v", readErr)
+	}
+	responseBody := string(bodyBytes)
+	if !strings.Contains(responseBody, "# Notes") {
+		t.Fatalf("expected markdown content to be served verbatim, body: %s", responseBody)
+	}
+	if strings.Contains(responseBody, "<h1>Notes</h1>") {
+		t.Fatalf("expected markdown rendering to be disabled, body: %s", responseBody)
+	}
+}
+
 func newTestFileServerHandler(rootDirectory string, enableMarkdown bool, disableDirectoryListing bool) http.Handler {
 	fileServerInstance := NewFileServer(logging.NewTestService(logging.TypeConsole), serverdetails.NewServingAddressFormatter())
 	configuration := FileServerConfiguration{
