@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/temirov/ghttp/internal/certificates"
@@ -33,7 +34,7 @@ const (
 	logFieldHosts                        = "hosts"
 )
 
-func newHTTPSCommand(resources *applicationResources) *cobra.Command {
+func newHTTPSCommand(resources *applicationResources, serveFlags *pflag.FlagSet, httpsOptionFlags *pflag.FlagSet) *cobra.Command {
 	httpsCommand := &cobra.Command{
 		Use:   "https",
 		Short: "Manage self-signed HTTPS certificates",
@@ -44,7 +45,7 @@ func newHTTPSCommand(resources *applicationResources) *cobra.Command {
 	_ = resources.configurationManager.BindPFlag(configKeyHTTPSCertificateDir, httpsCommand.PersistentFlags().Lookup(flagNameCertificateDir))
 
 	httpsCommand.AddCommand(newHTTPSSetupCommand(resources))
-	httpsCommand.AddCommand(newHTTPSServeCommand(resources))
+	httpsCommand.AddCommand(newHTTPSServeCommand(resources, serveFlags, httpsOptionFlags.Lookup(flagNameHTTPSHosts)))
 	httpsCommand.AddCommand(newHTTPSUninstallCommand(resources))
 
 	return httpsCommand
@@ -60,7 +61,7 @@ func newHTTPSSetupCommand(resources *applicationResources) *cobra.Command {
 	}
 }
 
-func newHTTPSServeCommand(resources *applicationResources) *cobra.Command {
+func newHTTPSServeCommand(resources *applicationResources, serveFlags *pflag.FlagSet, hostFlag *pflag.Flag) *cobra.Command {
 	httpsServeCommand := &cobra.Command{
 		Use:           "serve [port]",
 		Short:         "Serve HTTPS using the generated certificates",
@@ -78,10 +79,12 @@ func newHTTPSServeCommand(resources *applicationResources) *cobra.Command {
 		},
 	}
 
-	configureServeFlags(httpsServeCommand.Flags(), resources.configurationManager, false)
-	hostsDefault := resources.configurationManager.GetStringSlice(configKeyHTTPSHosts)
-	httpsServeCommand.Flags().StringSlice(flagNameHTTPSHosts, hostsDefault, "Hostnames or IPs to include in the certificate SAN")
-	_ = resources.configurationManager.BindPFlag(configKeyHTTPSHosts, httpsServeCommand.Flags().Lookup(flagNameHTTPSHosts))
+	if serveFlags != nil {
+		httpsServeCommand.Flags().AddFlagSet(serveFlags)
+	}
+	if hostFlag != nil {
+		httpsServeCommand.Flags().AddFlag(hostFlag)
+	}
 
 	return httpsServeCommand
 }
