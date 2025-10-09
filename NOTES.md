@@ -25,7 +25,6 @@ Leave Features, BugFixes, Improvements, Maintenance sections empty when all fixe
 
 ### Improvements
 
-- [ ] [GH-11] add --browse flag which always renders a content of a folder and never starts rendering with either readme.md or index.html. Allow to render md and html files if they are clicked
 - [ ] [GH-12] allow passing either html or md file to start serving it, e.g. `ghttp cat.html` shall have cat.html served on a default port
 
 ### BugFixes

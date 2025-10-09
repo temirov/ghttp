@@ -53,6 +53,7 @@ type FileServerConfiguration struct {
 	ProtocolVersion         string
 	DisableDirectoryListing bool
 	EnableMarkdown          bool
+	BrowseDirectories       bool
 	LoggingType             string
 	TLS                     *TLSConfiguration
 }
@@ -172,12 +173,16 @@ func (fileServer FileServer) Serve(ctx context.Context, configuration FileServer
 func (fileServer FileServer) buildFileHandler(configuration FileServerConfiguration) http.Handler {
 	fileSystem := http.Dir(configuration.DirectoryPath)
 	baseHandler := http.FileServer(fileSystem)
+	handler := baseHandler
 	if configuration.EnableMarkdown {
-		baseHandler = newMarkdownHandler(baseHandler, fileSystem, configuration.DisableDirectoryListing)
-	} else if configuration.DisableDirectoryListing {
-		baseHandler = newDirectoryGuardHandler(baseHandler, fileSystem)
+		handler = newMarkdownHandler(handler, fileSystem, configuration.DisableDirectoryListing, !configuration.BrowseDirectories)
+	} else if configuration.DisableDirectoryListing && !configuration.BrowseDirectories {
+		handler = newDirectoryGuardHandler(handler, fileSystem)
 	}
-	return baseHandler
+	if configuration.BrowseDirectories {
+		handler = newBrowseHandler(handler, fileSystem)
+	}
+	return handler
 }
 
 func (fileServer FileServer) wrapWithHeaders(handler http.Handler, protocolVersion string) http.Handler {

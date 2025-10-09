@@ -19,13 +19,15 @@ type markdownHandler struct {
 	next                    http.Handler
 	fileSystem              http.FileSystem
 	disableDirectoryListing bool
+	enableDirectoryMarkdown bool
 }
 
-func newMarkdownHandler(next http.Handler, fileSystem http.FileSystem, disableDirectoryListing bool) http.Handler {
+func newMarkdownHandler(next http.Handler, fileSystem http.FileSystem, disableDirectoryListing bool, enableDirectoryMarkdown bool) http.Handler {
 	return markdownHandler{
 		next:                    next,
 		fileSystem:              fileSystem,
 		disableDirectoryListing: disableDirectoryListing,
+		enableDirectoryMarkdown: enableDirectoryMarkdown,
 	}
 }
 
@@ -58,6 +60,11 @@ func (handler markdownHandler) ServeHTTP(responseWriter http.ResponseWriter, req
 
 func (handler markdownHandler) serveDirectory(responseWriter http.ResponseWriter, request *http.Request) {
 	if !strings.HasSuffix(request.URL.Path, "/") {
+		handler.next.ServeHTTP(responseWriter, request)
+		return
+	}
+
+	if !handler.enableDirectoryMarkdown {
 		handler.next.ServeHTTP(responseWriter, request)
 		return
 	}

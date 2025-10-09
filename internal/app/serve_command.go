@@ -35,6 +35,7 @@ type ServeConfiguration struct {
 	DisableDirectoryListing bool
 	EnableDynamicHTTPS      bool
 	EnableMarkdown          bool
+	BrowseDirectories       bool
 	LoggingType             string
 }
 
@@ -82,6 +83,7 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 	tlsCertificatePath := strings.TrimSpace(configurationManager.GetString(configKeyServeTLSCertificatePath))
 	tlsKeyPath := strings.TrimSpace(configurationManager.GetString(configKeyServeTLSKeyPath))
 	markdownDisabled := configurationManager.GetBool(configKeyServeNoMarkdown)
+	browseDirectories := configurationManager.GetBool(configKeyServeBrowse)
 	enableDynamicHTTPS := configurationManager.GetBool(configKeyServeHTTPS)
 	loggingTypeValue, normalizeErr := logging.NormalizeType(configurationManager.GetString(configKeyServeLoggingType))
 	if normalizeErr != nil {
@@ -113,6 +115,9 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 	}
 
 	disableDirectoryListing := os.Getenv(environmentVariableDisableDirectoryListing) == "1"
+	if browseDirectories {
+		disableDirectoryListing = false
+	}
 	serveConfiguration := ServeConfiguration{
 		BindAddress:             bindAddress,
 		Port:                    portValue,
@@ -123,6 +128,7 @@ func prepareServeConfiguration(cmd *cobra.Command, args []string, portConfigKey 
 		DisableDirectoryListing: disableDirectoryListing,
 		EnableDynamicHTTPS:      enableDynamicHTTPS,
 		EnableMarkdown:          !markdownDisabled,
+		BrowseDirectories:       browseDirectories,
 		LoggingType:             loggingTypeValue,
 	}
 
@@ -158,6 +164,7 @@ func runServe(cmd *cobra.Command) error {
 		ProtocolVersion:         serveConfiguration.ProtocolVersion,
 		DisableDirectoryListing: serveConfiguration.DisableDirectoryListing,
 		EnableMarkdown:          serveConfiguration.EnableMarkdown,
+		BrowseDirectories:       serveConfiguration.BrowseDirectories,
 		LoggingType:             serveConfiguration.LoggingType,
 	}
 	if serveConfiguration.TLSCertificatePath != "" {
