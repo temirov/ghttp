@@ -48,7 +48,7 @@ func (runner *recordingCommandRunner) RunWithPrivileges(ctx context.Context, exe
 	return nextError
 }
 
-func TestInstallerFactories(t *testing.T) {
+func TestIntegrationTrustStoreInstallerFactories(t *testing.T) {
 	ctx := context.Background()
 	temporaryDirectory := t.TempDir()
 	linuxSourcePath := filepath.Join(temporaryDirectory, "root_ca.pem")

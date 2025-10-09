@@ -1,0 +1,38 @@
+name: Go CI
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '**/*.go'
+  pull_request:
+    paths:
+      - '**/*.go'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify formatting
+        run: make check-format
+
+      - name: Run linting
+        run: make lint
+
+      - name: Run unit tests
+        run: make test-unit
+
+      - name: Run integration tests
+        run: make test-integration
