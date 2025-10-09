@@ -13,7 +13,7 @@ import (
 	"github.com/temirov/ghttp/pkg/logging"
 )
 
-func TestMarkdownFilesServedAsHTML(t *testing.T) {
+func TestIntegrationFileServerServesMarkdownAsHTML(t *testing.T) {
 	temporaryDirectory := t.TempDir()
 	writeFile(t, filepath.Join(temporaryDirectory, "hello.md"), "# Heading\n\nParagraph.")
 
@@ -40,7 +40,7 @@ func TestMarkdownFilesServedAsHTML(t *testing.T) {
 	}
 }
 
-func TestDirectoryReadmeServedAutomatically(t *testing.T) {
+func TestIntegrationFileServerServesDirectoryReadmeAutomatically(t *testing.T) {
 	temporaryDirectory := t.TempDir()
 	docsDirectory := filepath.Join(temporaryDirectory, "docs")
 	mustMkDir(t, docsDirectory)
@@ -65,7 +65,7 @@ func TestDirectoryReadmeServedAutomatically(t *testing.T) {
 	}
 }
 
-func TestSingleMarkdownInDirectoryServed(t *testing.T) {
+func TestIntegrationFileServerServesSingleMarkdownFromDirectory(t *testing.T) {
 	temporaryDirectory := t.TempDir()
 	singleDirectory := filepath.Join(temporaryDirectory, "single")
 	mustMkDir(t, singleDirectory)
@@ -90,7 +90,7 @@ func TestSingleMarkdownInDirectoryServed(t *testing.T) {
 	}
 }
 
-func TestDirectoryListingDisabledWithoutMarkdown(t *testing.T) {
+func TestIntegrationFileServerDisablesDirectoryListingWithoutMarkdown(t *testing.T) {
 	temporaryDirectory := t.TempDir()
 	emptyDirectory := filepath.Join(temporaryDirectory, "empty")
 	mustMkDir(t, emptyDirectory)

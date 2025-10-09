@@ -12,7 +12,7 @@ import (
 	"github.com/temirov/ghttp/pkg/logging"
 )
 
-func TestServeReturnsFriendlyErrorWhenPortInUse(t *testing.T) {
+func TestIntegrationFileServerReturnsFriendlyErrorWhenPortInUse(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)

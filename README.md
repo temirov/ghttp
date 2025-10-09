@@ -1,7 +1,19 @@
 # gHTTP
-gHTTP is a Go-powered file server that mirrors the ergonomics of `python -m http.server`, adds structured zap-based request logging, integrates Cobra + Viper configuration, and now provisions self-signed HTTPS certificates that can be trusted system-wide for local development.
+
+[![GitHub release](https://img.shields.io/github/release/temirov/ghttp.svg)](https://github.com/temirov/ghttp/releases)
+
+gHTTP is a Go-powered file server that mirrors the ergonomics of `python -m http.server`, adds structured zap-based request logging, renders mardown files as HTML, and provisions self-signed HTTPS certificates for local development.
+
+*gHTTP is fast.*
 
 ## Installation
+
+### Releases
+
+Download the latest binaries from the [Releases page](https://github.com/temirov/ghttp/releases).
+
+### Go toolchain
+
 Install gHTTP with the Go toolchain:
 
 ```
