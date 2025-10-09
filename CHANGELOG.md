@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.3 — 2025-10-10
+
+### Fixed
+- `--browse` flag now forces directory listings even when default index files are present.
+
 ## v0.2.2 — 2025-10-10
 
 ### Added
