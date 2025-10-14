@@ -1,0 +1,9 @@
+.git
+.github
+**/.DS_Store
+**/*.local.*
+**/node_modules
+**/bin
+**/dist
+**/build
+**/*.log
