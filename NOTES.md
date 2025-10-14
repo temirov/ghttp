@@ -83,4 +83,9 @@ Leave Features, BugFixes, Improvements, Maintenance sections empty when all fixe
  
 ### BugFixes
 
+- [X] [HT-02] The tests are failing
+    - Added a dependency-injected Docker prerequisite checker so integration tests skip gracefully when the daemon or base images are unavailable.
+    - Reworked Docker integration tests to reuse helpers and table-driven coverage for the new prerequisite logic.
+    - `go test ./...`
+
 ### Maintenance

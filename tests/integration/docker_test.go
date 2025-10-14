@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +29,8 @@ func TestDockerBuild(t *testing.T) {
 		t.Skip("Skipping Docker integration test in short mode")
 	}
 
+	requireDockerPrerequisites(t, nil)
+
 	repositoryRoot := getRepositoryRoot(t)
 
 	testCases := []struct {
@@ -49,15 +52,7 @@ func TestDockerBuild(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			contextWithTimeout, cancel := context.WithTimeout(context.Background(), dockerBuildTimeout)
-			defer cancel()
-
-			buildCommand := exec.CommandContext(contextWithTimeout, "docker", testCase.buildArgs...)
-			buildCommand.Dir = repositoryRoot
-			buildCommand.Stdout = os.Stdout
-			buildCommand.Stderr = os.Stderr
-
-			buildError := buildCommand.Run()
+			buildError := executeDockerCommand(t, dockerBuildTimeout, repositoryRoot, testCase.buildArgs)
 
 			if testCase.expectedError && buildError == nil {
 				t.Error("Expected build to fail, but it succeeded")
@@ -81,17 +76,12 @@ func TestDockerRun(t *testing.T) {
 		t.Skip("Skipping Docker integration test in short mode")
 	}
 
+	requireDockerPrerequisites(t, nil)
+
 	repositoryRoot := getRepositoryRoot(t)
 
-	buildContext, buildCancel := context.WithTimeout(context.Background(), dockerBuildTimeout)
-	defer buildCancel()
-
-	buildCommand := exec.CommandContext(buildContext, "docker", "build", "-t", dockerImageName, "-f", "Dockerfile", ".")
-	buildCommand.Dir = repositoryRoot
-	buildCommand.Stdout = os.Stdout
-	buildCommand.Stderr = os.Stderr
-
-	if buildError := buildCommand.Run(); buildError != nil {
+	buildArguments := []string{"build", "-t", dockerImageName, "-f", "Dockerfile", "."}
+	if buildError := executeDockerCommand(t, dockerBuildTimeout, repositoryRoot, buildArguments); buildError != nil {
 		t.Fatalf("Failed to build Docker image: %v", buildError)
 	}
 
@@ -110,12 +100,8 @@ func TestDockerRun(t *testing.T) {
 
 	containerName := fmt.Sprintf("ghttp-test-%d", time.Now().Unix())
 
-	runContext, runCancel := context.WithTimeout(context.Background(), dockerStartupTimeout)
-	defer runCancel()
-
-	runCommand := exec.CommandContext(
-		runContext,
-		"docker", "run",
+	runArguments := []string{
+		"run",
 		"--rm",
 		"-d",
 		"--name", containerName,
@@ -124,11 +110,9 @@ func TestDockerRun(t *testing.T) {
 		dockerImageName,
 		"--directory", "/data",
 		containerPort,
-	)
-	runCommand.Stdout = os.Stdout
-	runCommand.Stderr = os.Stderr
+	}
 
-	if runError := runCommand.Run(); runError != nil {
+	if runError := executeDockerCommand(t, dockerStartupTimeout, "", runArguments); runError != nil {
 		t.Fatalf("Failed to run Docker container: %v", runError)
 	}
 
@@ -178,13 +162,12 @@ func TestDockerMultiPlatformBuild(t *testing.T) {
 		t.Skip("Skipping Docker integration test in short mode")
 	}
 
+	requireDockerPrerequisites(t, nil)
+
 	repositoryRoot := getRepositoryRoot(t)
 
-	buildxContext, buildxCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer buildxCancel()
-
-	buildxCheckCommand := exec.CommandContext(buildxContext, "docker", "buildx", "version")
-	if buildxError := buildxCheckCommand.Run(); buildxError != nil {
+	buildxArguments := []string{"buildx", "version"}
+	if buildxError := executeDockerCommand(t, 10*time.Second, "", buildxArguments); buildxError != nil {
 		t.Skip("Docker buildx not available, skipping multi-platform test")
 	}
 
@@ -195,26 +178,38 @@ func TestDockerMultiPlatformBuild(t *testing.T) {
 
 	for _, platform := range platforms {
 		t.Run(platform, func(t *testing.T) {
-			contextWithTimeout, cancel := context.WithTimeout(context.Background(), dockerBuildTimeout)
-			defer cancel()
-
-			buildCommand := exec.CommandContext(
-				contextWithTimeout,
-				"docker", "buildx", "build",
+			commandArguments := []string{
+				"buildx", "build",
 				"--platform", platform,
 				"-t", fmt.Sprintf("%s-%s", dockerImageName, strings.ReplaceAll(platform, "/", "-")),
 				"-f", "Dockerfile",
 				".",
-			)
-			buildCommand.Dir = repositoryRoot
-			buildCommand.Stdout = os.Stdout
-			buildCommand.Stderr = os.Stderr
+			}
 
-			if buildError := buildCommand.Run(); buildError != nil {
+			if buildError := executeDockerCommand(t, dockerBuildTimeout, repositoryRoot, commandArguments); buildError != nil {
 				t.Errorf("Failed to build for platform %s: %v", platform, buildError)
 			}
 		})
 	}
+}
+
+func executeDockerCommand(testInstance *testing.T, timeoutDuration time.Duration, workingDirectory string, arguments []string) error {
+	testInstance.Helper()
+
+	if len(arguments) == 0 {
+		return errors.New("docker command requires at least one argument")
+	}
+
+	commandContext, cancel := context.WithTimeout(context.Background(), timeoutDuration)
+	defer cancel()
+
+	command := exec.CommandContext(commandContext, dockerExecutableName, arguments...)
+	if strings.TrimSpace(workingDirectory) != "" {
+		command.Dir = workingDirectory
+	}
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	return command.Run()
 }
 
 // getRepositoryRoot walks up the directory tree to find the repository root
