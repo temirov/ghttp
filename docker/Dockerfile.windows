@@ -1,0 +1,30 @@
+# escape=`
+
+ARG GHTTP_WINDOWS_BUILDER_IMAGE=golang:1.25-windowsservercore-ltsc2022
+FROM ${GHTTP_WINDOWS_BUILDER_IMAGE} AS builder
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'"]
+WORKDIR C:\\src
+
+ENV CGO_ENABLED=0
+ENV GOFLAGS=-trimpath
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN New-Item -ItemType Directory -Force -Path C:\\out | Out-Null
+RUN go build -ldflags="-s -w" -o C:\\out\\ghttp.exe .\\cmd\\ghttp
+
+ARG GHTTP_WINDOWS_RUNTIME_IMAGE=mcr.microsoft.com/windows/nanoserver:ltsc2022
+FROM ${GHTTP_WINDOWS_RUNTIME_IMAGE}
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'"]
+ARG GHTTP_WINDOWS_RUNTIME_IMAGE
+ARG GHTTP_WINDOWS_BUILDER_IMAGE
+LABEL org.temirov.ghttp.windows-builder-image=${GHTTP_WINDOWS_BUILDER_IMAGE}
+LABEL org.temirov.ghttp.windows-runtime-image=${GHTTP_WINDOWS_RUNTIME_IMAGE}
+WORKDIR C:\\app
+
+COPY --from=builder C:\\out\\ghttp.exe C:\\app\\ghttp.exe
+USER ContainerUser
+EXPOSE 8080
+ENTRYPOINT ["C:\\\\app\\\\ghttp.exe"]
