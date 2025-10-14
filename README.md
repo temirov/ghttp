@@ -8,6 +8,29 @@ gHTTP is a Go-powered file server that mirrors the ergonomics of `python -m http
 
 ## Installation
 
+### Docker
+
+Pull and run the latest Docker image:
+
+```bash
+docker pull ghcr.io/temirov/ghttp:latest
+docker run -p 8080:8080 -v $(pwd):/data ghcr.io/temirov/ghttp:latest --directory /data
+```
+
+The Docker image supports multiple platforms:
+- `linux/amd64` (x86_64)
+- `linux/arm64` (ARM 64-bit)
+
+Custom port and directory examples:
+
+```bash
+# Serve current directory on port 9000
+docker run -p 9000:9000 -v $(pwd):/data ghcr.io/temirov/ghttp:latest --directory /data 9000
+
+# Serve with HTTPS (requires certificate setup)
+docker run -p 8443:8443 -v $(pwd):/data -v ~/.config/ghttp:/root/.config/ghttp ghcr.io/temirov/ghttp:latest --directory /data --https 8443
+```
+
 ### Releases
 
 Download the latest binaries from the [Releases page](https://github.com/temirov/ghttp/releases).
