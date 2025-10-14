@@ -3,7 +3,7 @@ name: Docker Publish
 on:
   push:
     branches:
-      - master
+      - main
       - feature/HT-01-docker-images
 
 jobs:
