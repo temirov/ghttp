@@ -28,6 +28,8 @@ func TestDockerBuild(t *testing.T) {
 		t.Skip("Skipping Docker integration test in short mode")
 	}
 
+	skipIfDockerUnavailable(t)
+
 	repositoryRoot := getRepositoryRoot(t)
 
 	testCases := []struct {
@@ -80,6 +82,8 @@ func TestDockerRun(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping Docker integration test in short mode")
 	}
+
+	skipIfDockerUnavailable(t)
 
 	repositoryRoot := getRepositoryRoot(t)
 
@@ -178,6 +182,8 @@ func TestDockerMultiPlatformBuild(t *testing.T) {
 		t.Skip("Skipping Docker integration test in short mode")
 	}
 
+	skipIfDockerUnavailable(t)
+
 	repositoryRoot := getRepositoryRoot(t)
 
 	buildxContext, buildxCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -237,5 +243,24 @@ func getRepositoryRoot(testInstance *testing.T) string {
 			testInstance.Fatal("Could not find repository root (no Dockerfile found)")
 		}
 		currentDirectory = parentDirectory
+	}
+}
+
+func skipIfDockerUnavailable(testInstance *testing.T) {
+	testInstance.Helper()
+
+	if _, lookupError := exec.LookPath("docker"); lookupError != nil {
+		testInstance.Skipf("Docker binary not available: %v", lookupError)
+	}
+
+	availabilityContext, availabilityCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer availabilityCancel()
+
+	availabilityCommand := exec.CommandContext(availabilityContext, "docker", "version", "--format", "{{.Server.Version}}")
+	availabilityCommand.Stdout = io.Discard
+	availabilityCommand.Stderr = io.Discard
+
+	if availabilityError := availabilityCommand.Run(); availabilityError != nil {
+		testInstance.Skipf("Docker not available: %v", availabilityError)
 	}
 }
