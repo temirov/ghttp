@@ -79,7 +79,7 @@ Leave Features, BugFixes, Improvements, Maintenance sections empty when all fixe
 
 ### Improvements
 
-- [ ] [HT-01] Add Docker images to allow usage of gtttp through docker. The images should be built using GitHub Actions flow and should be available for all major platforms (Linx x86/arm, Windows) 
+- [X] [HT-01] Add Docker images to allow usage of gtttp through docker. The images should be built using GitHub Actions flow and should be available for all major platforms (Linx x86/arm, Windows) 
  
 ### BugFixes
 
