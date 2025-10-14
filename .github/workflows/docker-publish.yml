@@ -1,80 +1,37 @@
-name: Docker Image (ghttp → GHCR)
+name: Docker Publish
 
 on:
-  workflow_dispatch: {}
   push:
     branches:
       - master
-    tags:
-      - "v*.*.*"
-
-env:
-  registry: ghcr.io
-  default_platforms: linux/amd64,linux/arm64
+      - feature/HT-01-docker-images
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Lowercase image name
-        id: repo
-        run: echo "name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
-
-      - name: Derive tags
-        id: meta
-        run: |
-          set -euo pipefail
-          registry="${{ env.registry }}"
-          image="${{ steps.repo.outputs.name }}"
-          sha_tag="${{ github.sha }}"
-          tags="${registry}/${image}:${sha_tag}"
-
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            tags="${tags},${registry}/${image}:latest"
-          fi
-
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            version="${GITHUB_REF#refs/tags/}"
-            tags="${tags},${registry}/${image}:${version}"
-            major_minor="${version%.*}"
-            major="${version%%.*}"
-            tags="${tags},${registry}/${image}:${major_minor},${registry}/${image}:${major}"
-          fi
-
-          echo "tags=${tags}" >> "${GITHUB_OUTPUT}"
+        uses: actions/checkout@v3
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v2
 
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
         with:
-          registry: ${{ env.registry }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v4
         with:
           context: .
-          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: true
-          provenance: false
-          sbom: false
-          platforms: ${{ env.default_platforms }}
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:latest
