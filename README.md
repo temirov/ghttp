@@ -10,6 +10,8 @@ gHTTP is a Go-powered file server that mirrors the ergonomics of `python -m http
 
 ### Docker
 
+The workflow defined in `.github/workflows/docker-publish.yml` publishes container images to GitHub Container Registry whenever the `master` branch is updated or a release tag is created.
+
 Pull and run the latest Docker image:
 
 ```bash
@@ -17,7 +19,7 @@ docker pull ghcr.io/temirov/ghttp:latest
 docker run -p 8080:8080 -v $(pwd):/data ghcr.io/temirov/ghttp:latest --directory /data
 ```
 
-The Docker image supports multiple platforms:
+The published manifest covers:
 - `linux/amd64` (x86_64)
 - `linux/arm64` (ARM 64-bit)
 
