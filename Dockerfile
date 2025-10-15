@@ -1,8 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ---- build stage ----
-ARG GHTTP_BUILDER_IMAGE=golang:1.25
-FROM ${GHTTP_BUILDER_IMAGE} AS builder
+FROM golang:1.25 AS builder
 WORKDIR /src
 
 # Buildx will set these automatically per target platform
@@ -29,12 +28,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
         -o /out/ghttp ./cmd/ghttp
 
 # ---- runtime stage ----
-ARG GHTTP_RUNTIME_IMAGE=gcr.io/distroless/base-debian12
-FROM ${GHTTP_RUNTIME_IMAGE}
-ARG GHTTP_RUNTIME_IMAGE
-ARG GHTTP_BUILDER_IMAGE
-LABEL org.temirov.ghttp.builder-image=${GHTTP_BUILDER_IMAGE}
-LABEL org.temirov.ghttp.runtime-image=${GHTTP_RUNTIME_IMAGE}
+FROM gcr.io/distroless/base-debian12
+LABEL org.temirov.ghttp.builder-image=golang:1.25
+LABEL org.temirov.ghttp.runtime-image=gcr.io/distroless/base-debian12
 WORKDIR /app
 COPY --from=builder /out/ghttp /app/ghttp
 USER 65532:65532
