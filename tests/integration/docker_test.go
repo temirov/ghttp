@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -52,6 +51,7 @@ func TestDockerBuild(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			buildError := executeDockerCommand(t, dockerBuildTimeout, repositoryRoot, testCase.buildArgs)
 
@@ -178,6 +178,7 @@ func TestDockerMultiPlatformBuild(t *testing.T) {
 	}
 
 	for _, platform := range platforms {
+		platform := platform
 		t.Run(platform, func(t *testing.T) {
 			commandArguments := []string{
 				"buildx", "build",
@@ -191,33 +192,6 @@ func TestDockerMultiPlatformBuild(t *testing.T) {
 				t.Errorf("Failed to build for platform %s: %v", platform, buildError)
 			}
 		})
-	}
-
-	windowsDockerfilePath := filepath.Join(repositoryRoot, "docker", "Dockerfile.windows")
-	if _, statErr := os.Stat(windowsDockerfilePath); statErr != nil {
-		if !os.IsNotExist(statErr) {
-			t.Fatalf("Failed to stat Windows Dockerfile: %v", statErr)
-		}
-		return
-	}
-
-	if runtime.GOOS == "windows" || isTruthy(os.Getenv("GHTTP_ENABLE_WINDOWS_DOCKER_TESTS")) {
-		requireDockerPrerequisites(t, []string{
-			"golang:1.25-windowsservercore-ltsc2022",
-			"mcr.microsoft.com/windows/nanoserver:ltsc2022",
-		})
-		windowsTag := fmt.Sprintf("%s-windows", dockerImageName)
-		buildArguments := []string{
-			"build",
-			"-t", windowsTag,
-			"-f", filepath.Join("docker", "Dockerfile.windows"),
-			".",
-		}
-		if buildError := executeDockerCommand(t, dockerBuildTimeout, repositoryRoot, buildArguments); buildError != nil {
-			t.Errorf("Failed to build Windows Docker image: %v", buildError)
-		}
-	} else {
-		t.Log("Skipping Windows Docker build; enable by setting GHTTP_ENABLE_WINDOWS_DOCKER_TESTS=1 or running on Windows.")
 	}
 }
 

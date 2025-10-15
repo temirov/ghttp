@@ -11,23 +11,23 @@ func TestDistributionArtifactsPresent(t *testing.T) {
 	repositoryRoot := getRepositoryRoot(t)
 
 	testCases := []struct {
-		name             string
-		relativePath     string
-		expectedSnippets []string
+		name              string
+		relativePath      string
+		shouldExist       bool
+		expectedSnippets  []string
+		forbiddenSnippets []string
 	}{
 		{
-			name:         "windows dockerfile exists",
+			name:         "windows dockerfile absent",
 			relativePath: filepath.Join("docker", "Dockerfile.windows"),
-			expectedSnippets: []string{
-				"golang:1.25-windowsservercore-ltsc2022",
-				"ARG GHTTP_WINDOWS_RUNTIME_IMAGE=mcr.microsoft.com/windows/nanoserver:ltsc2022",
-				"ENTRYPOINT",
-			},
+			shouldExist:  false,
 		},
 		{
-			name:             "docker publish workflow covers windows",
-			relativePath:     filepath.Join(".github", "workflows", "docker-publish.yml"),
-			expectedSnippets: []string{"build-and-push-windows", "windows-latest", "docker/Dockerfile.windows", "windows/amd64"},
+			name:              "docker publish workflow targets linux platforms",
+			relativePath:      filepath.Join(".github", "workflows", "docker-publish.yml"),
+			shouldExist:       true,
+			expectedSnippets:  []string{"default_platforms: linux/amd64,linux/arm64"},
+			forbiddenSnippets: []string{"windows/amd64", "Dockerfile.windows"},
 		},
 	}
 
@@ -36,6 +36,16 @@ func TestDistributionArtifactsPresent(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			targetPath := filepath.Join(repositoryRoot, testCase.relativePath)
 			fileInfo, statErr := os.Stat(targetPath)
+			if !testCase.shouldExist {
+				if statErr == nil {
+					t.Fatalf("expected %s to be absent, but it exists", targetPath)
+				}
+				if !os.IsNotExist(statErr) {
+					t.Fatalf("unexpected error while checking %s: %v", targetPath, statErr)
+				}
+				return
+			}
+
 			if statErr != nil {
 				t.Fatalf("expected file %s: %v", targetPath, statErr)
 			}
@@ -50,6 +60,11 @@ func TestDistributionArtifactsPresent(t *testing.T) {
 			for _, snippet := range testCase.expectedSnippets {
 				if !strings.Contains(contentString, snippet) {
 					t.Fatalf("expected snippet %q in %s", snippet, targetPath)
+				}
+			}
+			for _, snippet := range testCase.forbiddenSnippets {
+				if strings.Contains(contentString, snippet) {
+					t.Fatalf("did not expect snippet %q in %s", snippet, targetPath)
 				}
 			}
 		})

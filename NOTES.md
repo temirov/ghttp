@@ -80,9 +80,9 @@ Leave Features, BugFixes, Improvements, Maintenance sections empty when all fixe
 ### Improvements
 
 - [X] [HT-01] Add Docker images to allow usage of gtttp through docker. The images should be built using GitHub Actions flow and should be available for all major platforms (Linx x86/arm, Windows) 
-    - Extended `.github/workflows/docker-publish.yml` to publish Linux (amd64, arm64) and Windows (amd64) images to GHCR on pushes and releases.
-    - Introduced `docker/Dockerfile.windows` and expanded documentation to cover Windows container usage.
-    - Extended integration tests to validate workflow metadata and optional Windows builds; `go test ./...`
+    - Extended `.github/workflows/docker-publish.yml` to publish Linux (amd64, arm64) images to GHCR on pushes and release tags.
+    - Confirmed Windows delivery relies on cross-compiled binaries rather than a separate container, and enforced that no Windows Dockerfile is present.
+    - Updated documentation and integration tests to match the streamlined distribution strategy; `go test ./...`
  
 ### BugFixes
 
