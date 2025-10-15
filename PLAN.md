@@ -1,7 +1,7 @@
 # HT-01 – Multi-platform Docker distribution
 - `Dockerfile`: split Linux build logic into explicit multi-platform stages that default to amd64/arm64 hosts while remaining BuildKit-friendly.
 - `docker/Dockerfile.windows`: introduce a Windows-specific container recipe that packages the Windows binary with nanoserver.
-- `.github/workflows/docker-images.yml`: add GitHub Actions pipeline that builds and pushes Linux (amd64, arm64) and Windows (amd64) images to GHCR on pushes and releases.
+- `.github/workflows/docker-publish.yml`: extend the existing pipeline to build and push Linux (amd64, arm64) and Windows (amd64) images to GHCR on pushes and releases.
 - `README.md`: document the new published images, platforms, and usage guidance including Windows invocation notes.
 
 # HT-02 – Stabilize container integration tests

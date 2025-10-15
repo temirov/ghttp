@@ -26,16 +26,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Lowercase image name
-        id: repo
-        run: echo "name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
-
       - name: Derive tags
         id: meta
         run: |
           set -euo pipefail
           registry="${{ env.registry }}"
-          image="${{ steps.repo.outputs.name }}"
+          image="${{ toLower(github.repository) }}"
           sha_tag="${{ github.sha }}"
           tags="${registry}/${image}:${sha_tag}"
 
@@ -78,3 +74,70 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  build-and-push-windows:
+    runs-on: windows-latest
+    needs:
+      - build-and-push
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive tags (Windows)
+        id: meta
+        shell: pwsh
+        run: |
+          $registry = "${{ env.registry }}"
+          $image = "${{ toLower(github.repository) }}-windows"
+          $shaTag = "${{ github.sha }}"
+          $tags = @("$registry/$image:$shaTag")
+
+          if ("${{ github.ref }}" -eq "refs/heads/master") {
+            $tags += "$registry/$image:latest"
+          }
+
+          if ("${{ github.ref }}".StartsWith("refs/tags/v")) {
+            $version = "${{ github.ref }}" -replace "^refs/tags/", ""
+            $tags += "$registry/$image:$version"
+
+            $segments = $version -split '\.'
+            if ($segments.Length -ge 2) {
+              $majorMinor = "$($segments[0]).$($segments[1])"
+              $tags += "$registry/$image:$majorMinor"
+            }
+            if ($segments.Length -ge 1) {
+              $major = $segments[0]
+              $tags += "$registry/$image:$major"
+            }
+          }
+
+          $joined = $tags -join ','
+          "tags=$joined" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.registry }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Windows image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./docker/Dockerfile.windows
+          push: true
+          provenance: false
+          sbom: false
+          platforms: windows/amd64
+          tags: ${{ steps.meta.outputs.tags }}

@@ -25,9 +25,9 @@ func TestDistributionArtifactsPresent(t *testing.T) {
 			},
 		},
 		{
-			name:             "github workflow defines multi-platform builds",
-			relativePath:     filepath.Join(".github", "workflows", "docker-images.yml"),
-			expectedSnippets: []string{"linux/amd64", "linux/arm64", "windows/amd64", "windows-latest"},
+			name:             "docker publish workflow covers windows",
+			relativePath:     filepath.Join(".github", "workflows", "docker-publish.yml"),
+			expectedSnippets: []string{"build-and-push-windows", "windows-latest", "docker/Dockerfile.windows", "windows/amd64"},
 		},
 	}
 

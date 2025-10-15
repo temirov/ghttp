@@ -10,7 +10,7 @@ gHTTP is a Go-powered file server that mirrors the ergonomics of `python -m http
 
 ### Docker
 
-The workflow defined in `.github/workflows/docker-images.yml` publishes container images to GitHub Container Registry whenever `main` is updated or a release is cut.
+The workflow defined in `.github/workflows/docker-publish.yml` publishes container images to GitHub Container Registry whenever the `master` branch is updated or a release tag is created.
 
 Linux multi-architecture manifest:
 
